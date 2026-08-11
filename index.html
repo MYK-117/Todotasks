@@ -28,10 +28,12 @@
 
         body {
             margin: 0;
-            font-family: Arial, sans-serif;
+            font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
             background: linear-gradient(135deg, #eef4ff, #f7f0ff);
             color: var(--text);
             font-size: 16px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         .app-shell {
@@ -119,6 +121,12 @@
             text-align: left;
             cursor: pointer;
             font-weight: 600;
+            transition: transform .12s ease, box-shadow .12s ease;
+        }
+
+        .menu-card button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 18px rgba(79, 124, 255, 0.08);
         }
 
         .account-badge {
@@ -140,6 +148,14 @@
             display: grid;
             place-items: center;
             font-weight: 800;
+        }
+
+        .sidebar .brand {
+            letter-spacing: -0.02em;
+        }
+
+        .sidebar-section {
+            padding-bottom: 6px;
         }
 
         .notes-panel {
@@ -220,10 +236,11 @@
         .task-panel,
         .notes-panel {
             background: var(--panel);
-            border-radius: 24px;
+            border-radius: 20px;
             align-items: center;
             gap: 20px;
             flex-wrap: wrap;
+            padding: 20px;
         }
 
         .hero h1 {
@@ -238,10 +255,10 @@
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(110px, 1fr));
+            grid-template-columns: repeat(4, minmax(100px, 1fr));
             gap: 10px;
             flex: 1;
-            min-width: 320px;
+            min-width: 260px;
         }
 
         .stat-card {
@@ -309,7 +326,7 @@
         .task-panel {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 14px;
         }
 
         .task-panel-header {
@@ -353,9 +370,10 @@
             align-items: flex-start;
             justify-content: space-between;
             border: 1px solid var(--border);
-            border-radius: 16px;
+            border-radius: 12px;
             padding: 12px 14px;
-            background: #fcfdff;
+            background: #ffffff;
+            box-shadow: 0 6px 18px rgba(17, 29, 74, 0.04);
         }
 
         .task-toggle {
@@ -452,6 +470,45 @@
             background: #fcfdff;
             border: 1px dashed var(--border);
             border-radius: 16px;
+        }
+
+        /* Task section container */
+        .task-section+.task-section {
+            margin-top: 12px;
+        }
+
+        /* Account modal */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 15, 30, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1200;
+        }
+
+        .modal {
+            background: var(--panel);
+            border-radius: 14px;
+            padding: 18px;
+            width: 420px;
+            max-width: 95%;
+            box-shadow: 0 30px 80px rgba(17, 29, 74, 0.6);
+        }
+
+        .modal h3 {
+            margin: 0 0 8px;
+        }
+
+        .modal .row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .modal input {
+            flex: 1;
         }
 
         .edit-row {
@@ -692,6 +749,8 @@
             const statOverdue = document.getElementById('statOverdue');
             const darkModeToggle = document.getElementById('darkModeToggle');
             const workspaceNotes = document.getElementById('workspaceNotes');
+            const accountBtn = document.getElementById('accountBtn');
+            const PROFILE_KEY = 'myk-profile-v1';
 
             const VALID_PRIORITIES = ['Low', 'Medium', 'High', 'Immediate Action'];
             const VALID_CATEGORIES = ['General', 'Study', 'Projects', 'Work', 'Personal'];
@@ -769,6 +828,33 @@
                 } catch (error) {
                     console.error('Failed to save notes', error);
                 }
+            }
+
+            /* Profile (local-only) */
+            function loadProfile() {
+                try {
+                    const raw = localStorage.getItem(PROFILE_KEY);
+                    if (!raw) return null;
+                    return JSON.parse(raw);
+                } catch (e) { return null; }
+            }
+
+            function saveLocalProfile(profile) {
+                try {
+                    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+                    renderProfile();
+                } catch (e) { console.error('Failed to save profile', e); }
+            }
+
+            function renderProfile() {
+                const p = loadProfile();
+                const badgeName = document.querySelector('.account-badge div div');
+                const badgeSub = document.querySelector('.account-badge div div + div');
+                const avatar = document.querySelector('.avatar');
+                if (!p) return;
+                if (badgeName) badgeName.textContent = p.name || 'You';
+                if (badgeSub) badgeSub.textContent = p.email ? p.email : 'Local profile';
+                if (avatar) avatar.textContent = (p.name || 'U').slice(0, 2).toUpperCase();
             }
 
             function loadState() {
@@ -1205,6 +1291,158 @@
                 persistNotes();
             });
 
+            /* Account modal handling + Firebase scaffold (frontend only) */
+            function openAccountModal() {
+                const backdrop = document.getElementById('modalBackdrop');
+                if (!backdrop) return;
+                backdrop.style.display = 'flex';
+                const profile = loadProfile() || {};
+                document.getElementById('profileName').value = profile.name || '';
+                document.getElementById('profileEmail').value = profile.email || '';
+            }
+
+            function closeAccountModal() {
+                const backdrop = document.getElementById('modalBackdrop');
+                if (!backdrop) return;
+                backdrop.style.display = 'none';
+            }
+
+            accountBtn && accountBtn.addEventListener('click', () => openAccountModal());
+
+            document.addEventListener('click', (e) => {
+                if (e.target && e.target.id === 'modalBackdrop') closeAccountModal();
+            });
+
+            document.addEventListener('submit', (e) => {
+                if (e.target && e.target.id === 'localProfileForm') {
+                    e.preventDefault();
+                    const name = document.getElementById('profileName').value.trim();
+                    const email = document.getElementById('profileEmail').value.trim();
+                    saveLocalProfile({ name, email });
+                    closeAccountModal();
+                }
+            });
+
+            // Firebase config placeholder - replace with your Firebase project settings
+            const firebaseConfig = {
+                apiKey: "AIzaSyCppRrtPEGbPC7SwaCs4ZeuCZKRPu8sSaM",
+                authDomain: "to-do-list-a741b.firebaseapp.com",
+                projectId: "to-do-list-a741b",
+                storageBucket: "to-do-list-a741b.firebasestorage.app",
+                messagingSenderId: "6664188864",
+                appId: "1:66641888648:web:fecb18d90f27dc2a1b263d",
+            };
+
+            let firebaseApp = null;
+            let firebaseAuth = null;
+            let authUnsubscribe = null;
+
+            function initFirebase(cfg) {
+                if (!cfg) return console.warn('Please provide firebaseConfig');
+                const script = document.createElement('script');
+                script.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
+                script.onload = () => {
+                    const s2 = document.createElement('script');
+                    s2.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js';
+                    s2.onload = () => {
+                        try {
+                            firebaseApp = window.firebase.initializeApp(cfg);
+                            firebaseAuth = window.firebase.auth();
+                            authUnsubscribe = firebaseAuth.onAuthStateChanged(handleAuthStateChanged);
+                            logFirebaseMessage('Firebase initialized.');
+                        } catch (err) {
+                            console.error('Firebase init failed', err);
+                            logFirebaseMessage('Firebase init failed: ' + err.message);
+                        }
+                    };
+                    document.head.appendChild(s2);
+                };
+                document.head.appendChild(script);
+            }
+
+            function handleAuthStateChanged(user) {
+                const status = document.getElementById('authStatus');
+                const message = document.getElementById('firebaseMessage');
+                const signOutBtn = document.getElementById('firebaseSignOutBtn');
+                if (!status || !message || !signOutBtn) return;
+
+                if (user) {
+                    status.textContent = `Signed in as ${user.email || user.displayName || 'user'}`;
+                    signOutBtn.style.display = 'block';
+                    message.textContent = 'You are signed in. Your task workspace is still stored locally unless you add persistence.';
+                } else {
+                    status.textContent = 'Signed out';
+                    signOutBtn.style.display = 'none';
+                    message.textContent = 'Use sign up or sign in to authenticate with Firebase.';
+                }
+            }
+
+            function logFirebaseMessage(text) {
+                const message = document.getElementById('firebaseMessage');
+                if (message) message.textContent = text;
+            }
+
+            async function firebaseSignUp(email, password) {
+                if (!firebaseAuth) throw new Error('Firebase not initialized');
+                return firebaseAuth.createUserWithEmailAndPassword(email, password);
+            }
+
+            async function firebaseSignIn(email, password) {
+                if (!firebaseAuth) throw new Error('Firebase not initialized');
+                return firebaseAuth.signInWithEmailAndPassword(email, password);
+            }
+
+            async function firebaseSignOut() {
+                if (!firebaseAuth) throw new Error('Firebase not initialized');
+                return firebaseAuth.signOut();
+            }
+
+            function bindFirebaseAuthButtons() {
+                const signUpBtn = document.getElementById('firebaseSignUpBtn');
+                const signInBtn = document.getElementById('firebaseSignInBtn');
+                const signOutBtn = document.getElementById('firebaseSignOutBtn');
+
+                if (signUpBtn) {
+                    signUpBtn.addEventListener('click', async () => {
+                        const email = document.getElementById('firebaseEmail').value.trim();
+                        const password = document.getElementById('firebasePassword').value;
+                        try {
+                            await firebaseSignUp(email, password);
+                            logFirebaseMessage('Sign up successful.');
+                        } catch (err) {
+                            console.error(err);
+                            logFirebaseMessage('Sign up failed: ' + err.message);
+                        }
+                    });
+                }
+
+                if (signInBtn) {
+                    signInBtn.addEventListener('click', async () => {
+                        const email = document.getElementById('firebaseEmail').value.trim();
+                        const password = document.getElementById('firebasePassword').value;
+                        try {
+                            await firebaseSignIn(email, password);
+                            logFirebaseMessage('Sign in successful.');
+                        } catch (err) {
+                            console.error(err);
+                            logFirebaseMessage('Sign in failed: ' + err.message);
+                        }
+                    });
+                }
+
+                if (signOutBtn) {
+                    signOutBtn.addEventListener('click', async () => {
+                        try {
+                            await firebaseSignOut();
+                            logFirebaseMessage('Signed out.');
+                        } catch (err) {
+                            console.error(err);
+                            logFirebaseMessage('Sign out failed: ' + err.message);
+                        }
+                    });
+                }
+            }
+
             loadState();
             loadTasks();
             loadNotes();
@@ -1214,8 +1452,45 @@
             setActiveCategoryButton(state.category);
             applyDarkMode();
             render();
+            bindFirebaseAuthButtons();
+            initFirebase(firebaseConfig);
         })();
     </script>
+    <!-- Account / Auth Modal -->
+    <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="acctTitle">
+            <h3 id="acctTitle">Account</h3>
+            <div class="auth-status" id="authStatus">Signed out</div>
+            <p style="color:var(--muted); margin:0 0 8px;">Local profile saves your display name. Firebase auth lets you
+                sign in with email/password.</p>
+            <form id="localProfileForm">
+                <div class="row">
+                    <input id="profileName" placeholder="Your name" />
+                </div>
+                <div class="row">
+                    <input id="profileEmail" placeholder="Email (optional)" />
+                </div>
+                <div class="row" style="justify-content:flex-end; margin-top:12px; gap:8px;">
+                    <button type="button"
+                        onclick="document.getElementById('modalBackdrop').style.display='none'">Close</button>
+                    <button type="submit">Save Profile</button>
+                </div>
+            </form>
+            <hr style="margin:18px 0; border-color: var(--border);" />
+            <div style="display:grid; gap:12px;">
+                <div style="font-weight:700;">Firebase Auth</div>
+                <input id="firebaseEmail" type="email" placeholder="Email" />
+                <input id="firebasePassword" type="password" placeholder="Password" />
+                <div class="row" style="justify-content:flex-end; gap:8px; margin-top:8px;">
+                    <button type="button" id="firebaseSignUpBtn">Sign Up</button>
+                    <button type="button" id="firebaseSignInBtn">Sign In</button>
+                </div>
+                <button type="button" id="firebaseSignOutBtn" style="width:100%; display:none;">Sign Out</button>
+                <div id="firebaseMessage" style="color: var(--muted); font-size: 13px;">Firebase auth is ready when you
+                    configure the app.</div>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
