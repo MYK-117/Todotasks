@@ -1427,7 +1427,8 @@
                             if (!cloudSyncReady || !cloudSyncUser) return;
                             writeCloudNotes().catch((error) => {
                                 console.error('Notes cloud write failed', error);
-                                logFirebaseMessage('Notes sync error: ' + error.message);
+                                showSyncError('Notes sync error: ' + error.message);
+                    logFirebaseMessage('Notes sync error: ' + error.message);
                             });
                         }, 300);
                     }
@@ -1564,7 +1565,11 @@
 
             async function startCloudSync(user) {
                 stopCloudSync();
-                if (!firestoreDb || !user) return;
+                if (!firestoreDb || !user) {
+                    setSyncIndicator('offline', 'Firebase unavailable');
+                    showSyncError('Firebase is not initialized on this device.');
+                    return;
+                }
 
                 cloudSyncUser = user;
                 cloudSyncStarted = true;
@@ -1585,7 +1590,7 @@
                 let profileReady = false;
 
                 const markReady = () => {
-                    if (tasksReady && notesReady && profileReady) {
+                    if (tasksReady) {
                         cloudSyncReady = true;
                         setSyncIndicator('online', 'Synced');
                         logFirebaseMessage('Cloud sync is ready.');
@@ -1598,7 +1603,7 @@
 
                         if (!remote) {
                             tasksReady = true;
-                            cloudSyncReady = tasksReady && notesReady && profileReady;
+                            cloudSyncReady = tasksReady;
                             if (cloudSyncReady && tasks.length) {
                                 cloudPendingLocalChanges = true;
                                 scheduleCloudWorkspaceWrite();
@@ -1622,7 +1627,7 @@
                         }
 
                         tasksReady = true;
-                        cloudSyncReady = tasksReady && notesReady && profileReady;
+                        cloudSyncReady = tasksReady;
                         markReady();
                     })().catch((error) => {
                         console.error('Task sync failed', error);
@@ -1653,7 +1658,7 @@
                         }
 
                         notesReady = true;
-                        cloudSyncReady = tasksReady && notesReady && profileReady;
+                        cloudSyncReady = tasksReady;
                         render();
                         markReady();
 
@@ -1705,7 +1710,8 @@
                         }
                     })().catch((error) => {
                         console.error('Profile sync failed', error);
-                        logFirebaseMessage('Profile sync error: ' + error.message);
+                        showSyncError('Profile sync error: ' + error.message);
+                    logFirebaseMessage('Profile sync error: ' + error.message);
                     });
                 }, (error) => {
                     console.error('Profile listener failed', error);
@@ -2509,6 +2515,16 @@
                 }
             }
 
+            function showSyncError(message) {
+                const pill = document.getElementById('syncPill');
+                const label = document.getElementById('syncPillText');
+                if (pill) {
+                    pill.title = message || '';
+                    pill.setAttribute('aria-label', message || 'Sync error');
+                }
+                if (label) label.textContent = message || 'Sync error';
+            }
+
             function setSyncIndicator(mode, text) {
                 const pill = document.getElementById('syncPill');
                 const label = document.getElementById('syncPillText');
@@ -2644,6 +2660,17 @@
             mobileAddBtn?.addEventListener('click', () => {
                 taskInput?.focus();
                 taskInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+
+
+            window.addEventListener('online', () => {
+                if (firebaseAuth?.currentUser) {
+                    startCloudSync(firebaseAuth.currentUser);
+                }
+            });
+
+            window.addEventListener('offline', () => {
+                setSyncIndicator('offline', 'Offline');
             });
 
             loadState();
