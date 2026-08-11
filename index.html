@@ -1161,7 +1161,7 @@
                     <h1>Task Dashboard</h1>
                     <p>Keep your work organized with priorities, notes, and sectioned task lists.</p>
                 </div>
-                <div class="sync-pill" id="syncPill"><span class="sync-dot"></span><span id="syncPillText">Local only</span></div><div id="syncDebug" style="margin-top:5px;font-size:11px;color:var(--muted);display:none"></div><button id="syncRefreshBtn" type="button" style="margin-top:4px;border:0;background:none;color:var(--muted);font-size:11px;padding:0;cursor:pointer">Refresh cloud data</button>
+                <div class="sync-pill" id="syncPill"><span class="sync-dot"></span><span id="syncPillText">Local only</span></div><div id="syncDebug" style="margin-top:5px;font-size:11px;color:var(--muted);display:none"></div><button id="syncRefreshBtn" type="button" style="margin-top:4px;border:0;background:none;color:var(--muted);font-size:11px;padding:0;cursor:pointer">Sync cloud data now</button>
                 <div class="stats-grid" id="statsGrid">
                     <div class="stat-card">
                         <div class="label">Total</div>
@@ -1400,7 +1400,19 @@
             };
 
             function persistTasks() {
+                const currentIds = new Set(tasks.map(task => String(task.id)));
+
+                // Anything removed from the local array needs a cloud tombstone so
+                // another device doesn't resurrect it on the next sync.
+                for (const id of cloudTaskSnapshot.keys()) {
+                    if (!currentIds.has(id)) {
+                        const stamp = Date.now();
+                        rememberDeletedTask(id, stamp);
+                    }
+                }
+
                 workspaceStore.writeTasks(tasks);
+
                 if (!cloudApplyingSnapshot) {
                     cloudPendingLocalChanges = true;
                     scheduleCloudWorkspaceWrite();
@@ -1426,9 +1438,10 @@
                         notesWriteTimer = setTimeout(() => {
                             if (!cloudSyncReady || !cloudSyncUser) return;
                             writeCloudNotes().catch((error) => {
+                                const detail = error?.code ? error.code + ': ' + error.message : error.message;
                                 console.error('Notes cloud write failed', error);
-                                showSyncError('Notes sync error: ' + error.message);
-                    logFirebaseMessage('Notes sync error: ' + error.message);
+                                showSyncError('Notes sync error: ' + detail);
+                                logFirebaseMessage('Notes sync error: ' + detail);
                             });
                         }, 300);
                     }
@@ -1442,79 +1455,137 @@
                 return firestoreDb.collection('users').doc(user.uid).collection('workspace').doc('main');
             }
 
+            function cloudTasksCollection(user) {
+                if (!firestoreDb || !user) return null;
+                return firestoreDb.collection('users').doc(user.uid).collection('tasks');
+            }
+
+            function cloudTaskPath(user, id) {
+                const col = cloudTasksCollection(user);
+                return col ? col.doc(String(id)) : null;
+            }
+
             function cloudNotesPath(user) {
                 if (!firestoreDb || !user) return null;
-                return firestoreDb.collection('users').doc(user.uid).collection('workspace').doc('notes');
+                return firestoreDb.collection('users').doc(user.uid).collection('notes').doc('main');
             }
 
             function cloudProfilePath(user) {
                 if (!firestoreDb || !user) return null;
-                return firestoreDb.collection('users').doc(user.uid).collection('workspace').doc('profile');
+                return firestoreDb.collection('users').doc(user.uid).collection('profile').doc('main');
             }
 
-            function buildCloudPayload() {
-                const profile = loadProfile() || {};
-                const existingNoteStamp = Number(localStorage.getItem(NOTES_UPDATED_KEY) || 0);
+            const CLOUD_SYNC_META_KEY = 'task_workspace_cloud_sync_meta_v1';
+            let cloudTaskSnapshot = new Map();
+            let cloudDeletedTaskIds = new Map();
+            let cloudSyncInFlight = false;
+            let cloudLastSyncAt = 0;
+
+            function loadCloudSyncMeta() {
+                try {
+                    const raw = JSON.parse(localStorage.getItem(CLOUD_SYNC_META_KEY) || '{}');
+                    return {
+                        lastSyncAt: Number(raw.lastSyncAt || 0),
+                        deleted: raw.deleted && typeof raw.deleted === 'object' ? raw.deleted : {}
+                    };
+                } catch {
+                    return { lastSyncAt: 0, deleted: {} };
+                }
+            }
+
+            function saveCloudSyncMeta() {
+                try {
+                    const deleted = {};
+                    for (const [id, stamp] of cloudDeletedTaskIds.entries()) deleted[id] = stamp;
+                    localStorage.setItem(CLOUD_SYNC_META_KEY, JSON.stringify({
+                        lastSyncAt: cloudLastSyncAt,
+                        deleted
+                    }));
+                } catch (error) {
+                    console.warn('Could not save cloud sync metadata', error);
+                }
+            }
+
+            function taskSignature(task) {
+                return JSON.stringify(sanitizeTask(task));
+            }
+
+            function rememberDeletedTask(id, updatedAt) {
+                cloudDeletedTaskIds.set(String(id), Number(updatedAt || Date.now()));
+                saveCloudSyncMeta();
+            }
+
+            function buildCloudTaskDoc(task) {
+                const clean = sanitizeTask(task);
                 return {
-                    tasks: tasks.map(sanitizeTask),
-                    notes: workspaceNotes.value || '',
-                    notesUpdatedAt: existingNoteStamp || 0,
-                    profile: {
-                        name: String(profile.name || '').trim().slice(0, 80),
-                        email: String(profile.email || '').trim().slice(0, 160),
-                        updatedAt: Number(profile.updatedAt || 0)
-                    }
+                    ...clean,
+                    syncDeleted: false,
+                    syncUpdatedAt: taskStamp(clean) || Date.now()
+                };
+            }
+
+            function buildCloudTombstone(id, updatedAt) {
+                return {
+                    id: String(id),
+                    syncDeleted: true,
+                    syncUpdatedAt: Number(updatedAt || Date.now())
                 };
             }
 
             function scheduleCloudWorkspaceWrite() {
                 if (!cloudSyncReady || !cloudSyncUser || cloudApplyingSnapshot) return;
                 clearTimeout(cloudWriteTimer);
-                cloudWriteTimer = setTimeout(async () => {
-                    try {
-                        await writeCloudWorkspace();
-
-                        const results = await Promise.allSettled([
-                            writeCloudNotes(),
-                            writeCloudProfile()
-                        ]);
-
-                        const rejected = results.filter(result => result.status === 'rejected');
-                        if (rejected.length) {
-                            console.warn('Some secondary cloud writes failed:', rejected);
-                            logFirebaseMessage('Tasks synced; profile/notes need attention.');
-                        }
-                    } catch (error) {
-                        console.error('Cloud workspace write failed', error);
+                cloudWriteTimer = setTimeout(() => {
+                    syncLocalTaskChanges().catch((error) => {
                         const detail = error?.code ? error.code + ': ' + error.message : error.message;
-                        console.error('Cloud workspace write failed:', error);
-                        logFirebaseMessage('Cloud sync error: ' + detail);
+                        console.error('Task cloud write failed:', error);
                         showSyncError('Sync error: ' + detail);
+                        logFirebaseMessage('Task sync error: ' + detail);
                         setSyncIndicator('offline', 'Sync error');
-                    }
-                }, 120);
+                    });
+                }, 150);
             }
 
-            async function writeCloudWorkspace() {
-                const ref = cloudWorkspacePath(cloudSyncUser);
-                if (!ref) return;
-                const payload = buildCloudPayload();
-                const serialized = JSON.stringify(payload);
-                if (serialized === cloudLastPayload) {
+            async function syncLocalTaskChanges() {
+                const user = cloudSyncUser;
+                if (!user || !firestoreDb || cloudApplyingSnapshot) return;
+
+                const writes = [];
+                const currentMap = new Map(tasks.map(task => [String(task.id), sanitizeTask(task)]));
+
+                for (const [id, task] of currentMap) {
+                    const previous = cloudTaskSnapshot.get(id);
+                    if (!previous || taskSignature(previous) !== taskSignature(task)) {
+                        writes.push(
+                            cloudTaskPath(user, id).set(buildCloudTaskDoc(task), { merge: true })
+                        );
+                    }
+                }
+
+                for (const [id, stamp] of cloudDeletedTaskIds.entries()) {
+                    if (!currentMap.has(id)) {
+                        writes.push(
+                            cloudTaskPath(user, id).set(buildCloudTombstone(id, stamp), { merge: true })
+                        );
+                    }
+                }
+
+                if (!writes.length) {
                     cloudPendingLocalChanges = false;
                     setSyncIndicator('online', 'Synced');
                     return;
                 }
 
                 setSyncIndicator('syncing', 'Saving…');
-                await ref.set({
-                    tasks: payload.tasks,
-                    recycleBin: payload.recycleBin || [],
-                    syncUpdatedAt: Date.now()
-                }, { merge: true });
-                cloudLastPayload = serialized;
+                await Promise.all(writes);
+
+                cloudTaskSnapshot = new Map(
+                    Array.from(currentMap.entries()).map(([id, task]) => [id, sanitizeTask(task)])
+                );
                 cloudPendingLocalChanges = false;
-                updateSyncDebug(cloudSyncUser, 'cloud tasks: ' + payload.tasks.length);
+                cloudLastSyncAt = Date.now();
+                saveCloudSyncMeta();
+                updateSyncDebug(user, 'tasks changed: ' + writes.length);
                 setSyncIndicator('online', 'Synced');
             }
 
@@ -1523,14 +1594,10 @@
                 if (!ref || cloudApplyingSnapshot) return;
 
                 const notes = workspaceNotes.value || '';
-                const notesUpdatedAt = Number(localStorage.getItem(NOTES_UPDATED_KEY) || 0) || Date.now();
+                const updatedAt = Number(localStorage.getItem(NOTES_UPDATED_KEY) || 0) || Date.now();
 
                 setSyncIndicator('syncing', 'Saving notes…');
-                await ref.set({
-                    notes,
-                    updatedAt: notesUpdatedAt
-                }, { merge: true });
-
+                await ref.set({ notes, updatedAt }, { merge: true });
                 setSyncIndicator('online', 'Synced');
             }
 
@@ -1550,33 +1617,197 @@
                 setSyncIndicator('online', 'Synced');
             }
 
-            function taskStamp(task) {
-                return new Date(task?.updatedAt || task?.createdAt || 0).getTime() || 0;
-            }
+            function mergeTaskRecords(localTasks, remoteRecords) {
+                const localMap = new Map(localTasks.map(task => [String(task.id), sanitizeTask(task)]));
+                const merged = new Map();
 
-            function mergeTasks(localTasks, remoteTasks) {
-                const localMap = new Map(localTasks.map(task => [task.id, sanitizeTask(task)]));
-                const remoteMap = new Map(remoteTasks.map(task => [task.id, sanitizeTask(task)]));
-                const mergedMap = new Map();
+                for (const record of remoteRecords) {
+                    const id = String(record.id || '');
+                    if (!id) continue;
 
-                for (const [id, localTask] of localMap) {
-                    const remoteTask = remoteMap.get(id);
-                    if (!remoteTask) {
-                        mergedMap.set(id, localTask);
+                    const remoteStamp = Number(record.syncUpdatedAt || taskStamp(record) || 0);
+                    const local = localMap.get(id);
+                    const localStamp = local ? taskStamp(local) : 0;
+
+                    if (record.syncDeleted) {
+                        if (local && localStamp > remoteStamp) {
+                            merged.set(id, local);
+                        }
+                        // Otherwise the remote deletion wins.
                         continue;
                     }
-                    mergedMap.set(id, taskStamp(remoteTask) >= taskStamp(localTask) ? remoteTask : localTask);
+
+                    const remoteTask = sanitizeTask(record);
+                    if (!local || remoteStamp > localStamp) {
+                        merged.set(id, remoteTask);
+                    } else {
+                        merged.set(id, local);
+                    }
                 }
 
-                for (const [id, remoteTask] of remoteMap) {
-                    if (!mergedMap.has(id)) mergedMap.set(id, remoteTask);
+                for (const [id, local] of localMap) {
+                    if (!merged.has(id)) merged.set(id, local);
                 }
 
-                return Array.from(mergedMap.values()).map(sanitizeTask);
+                return Array.from(merged.values()).map(sanitizeTask);
+            }
+
+            async function migrateLegacyWorkspaceIfNeeded(user, taskDocs) {
+                if (taskDocs.length) return false;
+
+                const legacyRef = cloudWorkspacePath(user);
+                if (!legacyRef) return false;
+
+                try {
+                    const legacySnap = await legacyRef.get({ source: 'server' });
+                    if (!legacySnap.exists) return false;
+
+                    const legacy = legacySnap.data() || {};
+                    const legacyTasks = Array.isArray(legacy.tasks)
+                        ? legacy.tasks.map(sanitizeTask)
+                        : [];
+
+                    if (!legacyTasks.length) return false;
+
+                    await Promise.all(
+                        legacyTasks.map(task =>
+                            cloudTaskPath(user, task.id).set(buildCloudTaskDoc(task), { merge: true })
+                        )
+                    );
+
+                    return true;
+                } catch (error) {
+                    console.warn('Legacy workspace migration skipped:', error);
+                    return false;
+                }
+            }
+
+            async function syncCloudNow(user = cloudSyncUser) {
+                if (!firestoreDb || !user || cloudSyncInFlight) return;
+
+                cloudSyncInFlight = true;
+                cloudApplyingSnapshot = true;
+                setSyncIndicator('syncing', 'Syncing…');
+
+                try {
+                    const tasksRef = cloudTasksCollection(user);
+                    const notesRef = cloudNotesPath(user);
+                    const profileRef = cloudProfilePath(user);
+
+                    // One collection read for tasks + one read each for notes/profile.
+                    // No permanent realtime listeners.
+                    const [taskSnap, notesSnap, profileSnap] = await Promise.all([
+                        tasksRef.get({ source: 'server' }),
+                        notesRef.get({ source: 'server' }),
+                        profileRef.get({ source: 'server' })
+                    ]);
+
+                    let taskDocs = taskSnap.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+
+                    // One-time migration from the old workspace/main document.
+                    if (!taskDocs.length) {
+                        await migrateLegacyWorkspaceIfNeeded(user, taskDocs);
+                        const migrated = await tasksRef.get({ source: 'server' });
+                        taskDocs = migrated.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                    }
+
+                    const before = new Map(tasks.map(task => [String(task.id), taskSignature(task)]));
+                    const mergedTasks = mergeTaskRecords(tasks, taskDocs);
+
+                    tasks = mergedTasks;
+                    workspaceStore.writeTasks(tasks);
+
+                    // If a local task is newer than the remote copy, it will be
+                    // written below. Otherwise the remote version is accepted.
+                    cloudTaskSnapshot = new Map(
+                        taskDocs
+                            .filter(record => !record.syncDeleted)
+                            .map(record => [String(record.id), sanitizeTask(record)])
+                    );
+
+                    const remoteNotes = notesSnap.exists ? notesSnap.data() : null;
+                    const remoteNotesStamp = Number(remoteNotes?.updatedAt || 0);
+                    const localNotesStamp = Number(localStorage.getItem(NOTES_UPDATED_KEY) || 0);
+
+                    if (remoteNotes && typeof remoteNotes.notes === 'string' && remoteNotesStamp > localNotesStamp) {
+                        workspaceNotes.value = remoteNotes.notes;
+                        localStorage.setItem(NOTES_KEY, remoteNotes.notes);
+                        localStorage.setItem(NOTES_UPDATED_KEY, String(remoteNotesStamp));
+                    }
+
+                    const localProfile = loadProfile() || {};
+                    const remoteProfile = profileSnap.exists ? profileSnap.data() : null;
+                    const remoteProfileStamp = Number(remoteProfile?.updatedAt || 0);
+                    const localProfileStamp = Number(localProfile.updatedAt || 0);
+
+                    if (remoteProfile && remoteProfileStamp > localProfileStamp) {
+                        saveLocalProfile({
+                            name: remoteProfile.name || '',
+                            email: remoteProfile.email || '',
+                            updatedAt: remoteProfileStamp
+                        }, false);
+                    }
+
+                    render();
+                    renderProfile();
+
+                    cloudSyncReady = true;
+                    cloudLastSyncAt = Date.now();
+                    saveCloudSyncMeta();
+
+                    // Push only local changes that are newer/different.
+                    const current = new Map(tasks.map(task => [String(task.id), sanitizeTask(task)]));
+                    const localWrites = [];
+
+                    for (const [id, task] of current) {
+                        const remote = cloudTaskSnapshot.get(id);
+                        if (!remote || taskStamp(task) > taskStamp(remote)) {
+                            localWrites.push(
+                                cloudTaskPath(user, id).set(buildCloudTaskDoc(task), { merge: true })
+                            );
+                        }
+                    }
+
+                    if (localWrites.length) {
+                        await Promise.all(localWrites);
+                        cloudTaskSnapshot = new Map(
+                            tasks.map(task => [String(task.id), sanitizeTask(task)])
+                        );
+                    }
+
+                    // First cloud setup for notes/profile, only when documents are absent.
+                    if (!notesSnap.exists && workspaceNotes.value) {
+                        await writeCloudNotes();
+                    }
+                    if (!profileSnap.exists && (localProfile.name || localProfile.email)) {
+                        await writeCloudProfile();
+                    }
+
+                    cloudPendingLocalChanges = false;
+                    updateSyncDebug(user, 'server sync • tasks: ' + taskDocs.filter(r => !r.syncDeleted).length);
+                    setSyncIndicator('online', 'Synced');
+                } catch (error) {
+                    console.error('Cloud sync failed:', error);
+                    const detail = error?.code ? error.code + ': ' + error.message : error.message;
+                    showSyncError('Sync error: ' + detail);
+                    logFirebaseMessage('Cloud sync error: ' + detail);
+                    setSyncIndicator('offline', 'Sync error');
+                    throw error;
+                } finally {
+                    cloudApplyingSnapshot = false;
+                    cloudSyncInFlight = false;
+                }
             }
 
             async function startCloudSync(user) {
                 stopCloudSync();
+
                 if (!firestoreDb || !user) {
                     setSyncIndicator('offline', 'Firebase unavailable');
                     showSyncError('Firebase is not initialized on this device.');
@@ -1584,157 +1815,26 @@
                 }
 
                 cloudSyncUser = user;
-                updateSyncDebug(user, 'connecting');
                 cloudSyncStarted = true;
                 cloudSyncReady = false;
-                cloudHasRemoteSnapshot = false;
                 cloudPendingLocalChanges = false;
                 cloudLastPayload = '';
 
-                setSyncIndicator('syncing', 'Connecting…');
-                logFirebaseMessage('Connecting your workspace to Firestore…');
+                const meta = loadCloudSyncMeta();
+                cloudLastSyncAt = meta.lastSyncAt;
+                cloudDeletedTaskIds = new Map(
+                    Object.entries(meta.deleted || {}).map(([id, stamp]) => [id, Number(stamp)])
+                );
 
-                const mainRef = cloudWorkspacePath(user);
-                const notesRef = cloudNotesPath(user);
-                const profileRef = cloudProfilePath(user);
+                updateSyncDebug(user, 'server sync');
+                setSyncIndicator('syncing', 'Syncing…');
+                logFirebaseMessage('Starting low-read cloud sync…');
 
-                let tasksReady = false;
-                let notesReady = false;
-                let profileReady = false;
-
-                const markReady = () => {
-                    if (tasksReady) {
-                        cloudSyncReady = true;
-                        setSyncIndicator('online', 'Synced');
-                        logFirebaseMessage('Cloud sync is ready.');
-                    }
-                };
-
-                firestoreUnsubscribe = mainRef.onSnapshot((snapshot) => {
-                    void (async () => {
-                        const remote = snapshot.exists ? snapshot.data() : null;
-
-                        if (!remote) {
-                            tasksReady = true;
-                            cloudSyncReady = tasksReady;
-                            if (cloudSyncReady && tasks.length) {
-                                cloudPendingLocalChanges = true;
-                                scheduleCloudWorkspaceWrite();
-                            } else {
-                                markReady();
-                            }
-                            return;
-                        }
-
-                        cloudApplyingSnapshot = true;
-                        try {
-                            const remoteTasks = Array.isArray(remote.tasks)
-                                ? remote.tasks.map(sanitizeTask)
-                                : [];
-
-                            tasks = mergeTasks(tasks, remoteTasks);
-                            workspaceStore.writeTasks(tasks);
-                            render();
-                            updateSyncDebug(user, 'cloud tasks: ' + remoteTasks.length);
-                        } finally {
-                            cloudApplyingSnapshot = false;
-                        }
-
-                        tasksReady = true;
-                        cloudSyncReady = tasksReady;
-                        updateSyncDebug(user, 'listener connected');
-                        markReady();
-                        // Direct server read verifies the phone is reading the
-                        // same document and avoids relying solely on cache state.
-                        void forceCloudRead(user);
-                    })().catch((error) => {
-                        console.error('Task sync failed', error);
-                        setSyncIndicator('offline', 'Sync error');
-                        logFirebaseMessage('Task sync error: ' + error.message);
-                    });
-                }, (error) => {
-                    console.error('Task listener failed', error);
-                    setSyncIndicator('offline', 'Offline');
-                    logFirebaseMessage('Task sync error: ' + error.message);
-                });
-
-                notesUnsubscribe = notesRef.onSnapshot((snapshot) => {
-                    void (async () => {
-                        const remote = snapshot.exists ? snapshot.data() : null;
-                        const remoteUpdatedAt = Number(remote?.updatedAt || 0);
-                        const localUpdatedAt = Number(localStorage.getItem(NOTES_UPDATED_KEY) || 0);
-
-                        if (remote && typeof remote.notes === 'string' && remoteUpdatedAt > localUpdatedAt) {
-                            cloudApplyingSnapshot = true;
-                            try {
-                                workspaceNotes.value = remote.notes;
-                                localStorage.setItem(NOTES_KEY, remote.notes);
-                                localStorage.setItem(NOTES_UPDATED_KEY, String(remoteUpdatedAt));
-                            } finally {
-                                cloudApplyingSnapshot = false;
-                            }
-                        }
-
-                        notesReady = true;
-                        cloudSyncReady = tasksReady;
-                        render();
-                        markReady();
-
-                        // First-time cloud setup: create the notes document only
-                        // when local notes exist and the cloud document is empty.
-                        if (!remote && workspaceNotes.value && cloudSyncReady) {
-                            cloudPendingLocalChanges = true;
-                            scheduleCloudWorkspaceWrite();
-                        }
-                    })().catch((error) => {
-                        console.error('Notes sync failed', error);
-                        logFirebaseMessage('Notes sync error: ' + error.message);
-                    });
-                }, (error) => {
-                    console.error('Notes listener failed', error);
-                    logFirebaseMessage('Notes sync error: ' + error.message);
-                });
-
-                profileUnsubscribe = profileRef.onSnapshot((snapshot) => {
-                    void (async () => {
-                        const remote = snapshot.exists ? snapshot.data() : null;
-                        const remoteUpdatedAt = Number(remote?.updatedAt || 0);
-                        const localProfile = loadProfile() || {};
-                        const localUpdatedAt = Number(localProfile.updatedAt || 0);
-
-                        if (remote && remoteUpdatedAt > localUpdatedAt) {
-                            cloudApplyingSnapshot = true;
-                            try {
-                                saveLocalProfile({
-                                    name: remote.name || '',
-                                    email: remote.email || '',
-                                    updatedAt: remoteUpdatedAt
-                                }, false);
-                            } finally {
-                                cloudApplyingSnapshot = false;
-                            }
-                        }
-
-                        profileReady = true;
-                        cloudSyncReady = tasksReady && notesReady && profileReady;
-                        renderProfile();
-                        markReady();
-
-                        // If the user has a local profile but no cloud profile,
-                        // create it immediately.
-                        if (!remote && (localProfile.name || localProfile.email) && cloudSyncReady) {
-                            cloudPendingLocalChanges = true;
-                            scheduleCloudWorkspaceWrite();
-                        }
-                    })().catch((error) => {
-                        console.error('Profile sync failed', error);
-                        showSyncError('Profile sync error: ' + error.message);
-                    logFirebaseMessage('Profile sync error: ' + error.message);
-                    });
-                }, (error) => {
-                    console.error('Profile listener failed', error);
-                    logFirebaseMessage('Profile sync error: ' + error.message);
-                });
+                try {
+                    await syncCloudNow(user);
+                } catch {
+                    // syncCloudNow already reports the useful error.
+                }
             }
 
             function stopCloudSync() {
@@ -1742,19 +1842,23 @@
                 clearTimeout(notesWriteTimer);
                 cloudWriteTimer = null;
                 notesWriteTimer = null;
+
                 if (firestoreUnsubscribe) firestoreUnsubscribe();
                 if (notesUnsubscribe) notesUnsubscribe();
                 if (profileUnsubscribe) profileUnsubscribe();
+
                 firestoreUnsubscribe = null;
                 notesUnsubscribe = null;
                 profileUnsubscribe = null;
+
                 cloudSyncUser = null;
                 cloudSyncReady = false;
                 cloudSyncStarted = false;
-                cloudHasRemoteSnapshot = false;
                 cloudPendingLocalChanges = false;
                 cloudLastPayload = '';
                 cloudApplyingSnapshot = false;
+                cloudSyncInFlight = false;
+                cloudTaskSnapshot = new Map();
                 setSyncIndicator('offline', 'Local only');
             }
 
@@ -1778,9 +1882,17 @@
                     };
                     localStorage.setItem(PROFILE_KEY, JSON.stringify(clean));
                     renderProfile();
-                    if (sync && !cloudApplyingSnapshot) {
+                    if (sync && !cloudApplyingSnapshot && cloudSyncReady) {
                         cloudPendingLocalChanges = true;
-                        scheduleCloudWorkspaceWrite();
+                        setSyncIndicator('syncing', 'Saving profile…');
+                        clearTimeout(cloudWriteTimer);
+                        cloudWriteTimer = setTimeout(() => {
+                            writeCloudProfile().catch((error) => {
+                                const detail = error?.code ? error.code + ': ' + error.message : error.message;
+                                showSyncError('Profile sync error: ' + detail);
+                                logFirebaseMessage('Profile sync error: ' + detail);
+                            });
+                        }, 150);
                     }
                 } catch (e) {
                     console.error('Failed to save profile', e);
@@ -2694,9 +2806,7 @@
                 const user = firebaseAuth?.currentUser;
                 if (!user) return;
                 setSyncIndicator('syncing', 'Refreshing…');
-                void forceCloudRead(user).finally(() => {
-                    setSyncIndicator('online', 'Synced');
-                });
+                void syncCloudNow(user).catch(() => {});
             });
 
             const mobileNav = document.getElementById('mobileNav');
@@ -2735,6 +2845,19 @@
             window.addEventListener('online', () => {
                 if (firebaseAuth?.currentUser) {
                     startCloudSync(firebaseAuth.currentUser);
+                }
+            });
+
+
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && firebaseAuth?.currentUser) {
+                    void syncCloudNow(firebaseAuth.currentUser).catch(() => {});
+                }
+            });
+
+            window.addEventListener('online', () => {
+                if (firebaseAuth?.currentUser) {
+                    void syncCloudNow(firebaseAuth.currentUser).catch(() => {});
                 }
             });
 
