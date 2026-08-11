@@ -1423,7 +1423,13 @@
                     if (!cloudApplyingSnapshot) {
                         cloudPendingLocalChanges = true;
                         clearTimeout(notesWriteTimer);
-                        notesWriteTimer = setTimeout(() => scheduleCloudWorkspaceWrite(), 500);
+                        notesWriteTimer = setTimeout(() => {
+                            if (!cloudSyncReady || !cloudSyncUser) return;
+                            writeCloudNotes().catch((error) => {
+                                console.error('Notes cloud write failed', error);
+                                logFirebaseMessage('Notes sync error: ' + error.message);
+                            });
+                        }, 300);
                     }
                 } catch (error) {
                     console.error('Failed to save notes', error);
@@ -1435,13 +1441,23 @@
                 return firestoreDb.collection('users').doc(user.uid).collection('workspace').doc('main');
             }
 
+            function cloudNotesPath(user) {
+                if (!firestoreDb || !user) return null;
+                return firestoreDb.collection('users').doc(user.uid).collection('workspace').doc('notes');
+            }
+
+            function cloudProfilePath(user) {
+                if (!firestoreDb || !user) return null;
+                return firestoreDb.collection('users').doc(user.uid).collection('workspace').doc('profile');
+            }
+
             function buildCloudPayload() {
                 const profile = loadProfile() || {};
                 const existingNoteStamp = Number(localStorage.getItem(NOTES_UPDATED_KEY) || 0);
                 return {
                     tasks: tasks.map(sanitizeTask),
                     notes: workspaceNotes.value || '',
-                    notesUpdatedAt: existingNoteStamp || Date.now(),
+                    notesUpdatedAt: existingNoteStamp || 0,
                     profile: {
                         name: String(profile.name || '').trim().slice(0, 80),
                         email: String(profile.email || '').trim().slice(0, 160),
@@ -1453,12 +1469,19 @@
             function scheduleCloudWorkspaceWrite() {
                 if (!cloudSyncReady || !cloudSyncUser || cloudApplyingSnapshot) return;
                 clearTimeout(cloudWriteTimer);
-                cloudWriteTimer = setTimeout(() => {
-                    writeCloudWorkspace().catch((error) => {
+                cloudWriteTimer = setTimeout(async () => {
+                    try {
+                        await writeCloudWorkspace();
+                        await Promise.allSettled([
+                            writeCloudNotes(),
+                            writeCloudProfile()
+                        ]);
+                    } catch (error) {
                         console.error('Cloud workspace write failed', error);
                         logFirebaseMessage('Cloud sync error: ' + error.message);
-                    });
-                }, 350);
+                        setSyncIndicator('offline', 'Sync error');
+                    }
+                }, 120);
             }
 
             async function writeCloudWorkspace() {
@@ -1466,7 +1489,11 @@
                 if (!ref) return;
                 const payload = buildCloudPayload();
                 const serialized = JSON.stringify(payload);
-                if (serialized === cloudLastPayload) return;
+                if (serialized === cloudLastPayload) {
+                    cloudPendingLocalChanges = false;
+                    setSyncIndicator('online', 'Synced');
+                    return;
+                }
 
                 setSyncIndicator('syncing', 'Saving…');
                 await ref.set({
@@ -1475,6 +1502,38 @@
                 });
                 cloudLastPayload = serialized;
                 cloudPendingLocalChanges = false;
+                setSyncIndicator('online', 'Synced');
+            }
+
+            async function writeCloudNotes() {
+                const ref = cloudNotesPath(cloudSyncUser);
+                if (!ref || cloudApplyingSnapshot) return;
+
+                const notes = workspaceNotes.value || '';
+                const notesUpdatedAt = Number(localStorage.getItem(NOTES_UPDATED_KEY) || 0) || Date.now();
+
+                setSyncIndicator('syncing', 'Saving notes…');
+                await ref.set({
+                    notes,
+                    updatedAt: notesUpdatedAt
+                }, { merge: true });
+
+                setSyncIndicator('online', 'Synced');
+            }
+
+            async function writeCloudProfile() {
+                const ref = cloudProfilePath(cloudSyncUser);
+                if (!ref || cloudApplyingSnapshot) return;
+
+                const profile = loadProfile() || {};
+                const payload = {
+                    name: String(profile.name || '').trim().slice(0, 80),
+                    email: String(profile.email || '').trim().slice(0, 160),
+                    updatedAt: Number(profile.updatedAt || 0) || Date.now()
+                };
+
+                setSyncIndicator('syncing', 'Saving profile…');
+                await ref.set(payload, { merge: true });
                 setSyncIndicator('online', 'Synced');
             }
 
@@ -1513,80 +1572,144 @@
                 cloudHasRemoteSnapshot = false;
                 cloudPendingLocalChanges = false;
                 cloudLastPayload = '';
+
                 setSyncIndicator('syncing', 'Connecting…');
                 logFirebaseMessage('Connecting your workspace to Firestore…');
 
-                const ref = cloudWorkspacePath(user);
+                const mainRef = cloudWorkspacePath(user);
+                const notesRef = cloudNotesPath(user);
+                const profileRef = cloudProfilePath(user);
 
-                firestoreUnsubscribe = ref.onSnapshot(async (snapshot) => {
-                    const remote = snapshot.exists ? snapshot.data() : null;
+                let tasksReady = false;
+                let notesReady = false;
+                let profileReady = false;
 
-                    if (!remote) {
+                const markReady = () => {
+                    if (tasksReady && notesReady && profileReady) {
                         cloudSyncReady = true;
-                        cloudHasRemoteSnapshot = false;
-                        await writeCloudWorkspace();
                         setSyncIndicator('online', 'Synced');
                         logFirebaseMessage('Cloud sync is ready.');
-                        return;
                     }
+                };
 
-                    cloudApplyingSnapshot = true;
-                    try {
-                        const remoteTasks = Array.isArray(remote.tasks)
-                            ? remote.tasks.map(sanitizeTask)
-                            : [];
+                firestoreUnsubscribe = mainRef.onSnapshot((snapshot) => {
+                    void (async () => {
+                        const remote = snapshot.exists ? snapshot.data() : null;
 
-                        const localPayload = buildCloudPayload();
-                        tasks = mergeTasks(tasks, remoteTasks);
-
-                        const remoteNotesStamp = Number(remote.notesUpdatedAt || 0);
-                        const localNotesStamp = Number(localPayload.notesUpdatedAt || 0);
-
-                        if (typeof remote.notes === 'string' && remoteNotesStamp > localNotesStamp) {
-                            workspaceNotes.value = remote.notes;
-                            localStorage.setItem(NOTES_KEY, remote.notes);
-                            localStorage.setItem(NOTES_UPDATED_KEY, String(remoteNotesStamp));
+                        if (!remote) {
+                            tasksReady = true;
+                            cloudSyncReady = tasksReady && notesReady && profileReady;
+                            if (cloudSyncReady && tasks.length) {
+                                cloudPendingLocalChanges = true;
+                                scheduleCloudWorkspaceWrite();
+                            } else {
+                                markReady();
+                            }
+                            return;
                         }
 
-                        const remoteProfile = remote.profile && typeof remote.profile === 'object'
-                            ? remote.profile
-                            : null;
-                        const localProfile = loadProfile() || {};
-                        const remoteProfileStamp = Number(remoteProfile?.updatedAt || 0);
-                        const localProfileStamp = Number(localProfile?.updatedAt || 0);
+                        cloudApplyingSnapshot = true;
+                        try {
+                            const remoteTasks = Array.isArray(remote.tasks)
+                                ? remote.tasks.map(sanitizeTask)
+                                : [];
 
-                        if (remoteProfile && remoteProfileStamp > localProfileStamp) {
-                            saveLocalProfile({
-                                name: remoteProfile.name || '',
-                                email: remoteProfile.email || '',
-                                updatedAt: remoteProfileStamp
-                            }, false);
+                            tasks = mergeTasks(tasks, remoteTasks);
+                            workspaceStore.writeTasks(tasks);
+                            render();
+                        } finally {
+                            cloudApplyingSnapshot = false;
                         }
 
-                        workspaceStore.writeTasks(tasks);
-                        render();
-                        renderProfile();
-                    } finally {
-                        cloudApplyingSnapshot = false;
-                    }
-
-                    cloudSyncReady = true;
-                    cloudHasRemoteSnapshot = true;
-
-                    const mergedPayload = buildCloudPayload();
-                    const mergedSerialized = JSON.stringify(mergedPayload);
-                    if (mergedSerialized !== cloudLastPayload || cloudPendingLocalChanges) {
-                        await writeCloudWorkspace();
-                    }
-
-                    cloudPendingLocalChanges = false;
-                    setSyncIndicator('online', 'Synced');
-                    logFirebaseMessage('Cloud sync is ready.');
+                        tasksReady = true;
+                        cloudSyncReady = tasksReady && notesReady && profileReady;
+                        markReady();
+                    })().catch((error) => {
+                        console.error('Task sync failed', error);
+                        setSyncIndicator('offline', 'Sync error');
+                        logFirebaseMessage('Task sync error: ' + error.message);
+                    });
                 }, (error) => {
-                    console.error('Firestore listener failed', error);
-                    cloudSyncReady = false;
+                    console.error('Task listener failed', error);
                     setSyncIndicator('offline', 'Offline');
-                    logFirebaseMessage('Cloud sync error: ' + error.message);
+                    logFirebaseMessage('Task sync error: ' + error.message);
+                });
+
+                notesUnsubscribe = notesRef.onSnapshot((snapshot) => {
+                    void (async () => {
+                        const remote = snapshot.exists ? snapshot.data() : null;
+                        const remoteUpdatedAt = Number(remote?.updatedAt || 0);
+                        const localUpdatedAt = Number(localStorage.getItem(NOTES_UPDATED_KEY) || 0);
+
+                        if (remote && typeof remote.notes === 'string' && remoteUpdatedAt > localUpdatedAt) {
+                            cloudApplyingSnapshot = true;
+                            try {
+                                workspaceNotes.value = remote.notes;
+                                localStorage.setItem(NOTES_KEY, remote.notes);
+                                localStorage.setItem(NOTES_UPDATED_KEY, String(remoteUpdatedAt));
+                            } finally {
+                                cloudApplyingSnapshot = false;
+                            }
+                        }
+
+                        notesReady = true;
+                        cloudSyncReady = tasksReady && notesReady && profileReady;
+                        render();
+                        markReady();
+
+                        // First-time cloud setup: create the notes document only
+                        // when local notes exist and the cloud document is empty.
+                        if (!remote && workspaceNotes.value && cloudSyncReady) {
+                            cloudPendingLocalChanges = true;
+                            scheduleCloudWorkspaceWrite();
+                        }
+                    })().catch((error) => {
+                        console.error('Notes sync failed', error);
+                        logFirebaseMessage('Notes sync error: ' + error.message);
+                    });
+                }, (error) => {
+                    console.error('Notes listener failed', error);
+                    logFirebaseMessage('Notes sync error: ' + error.message);
+                });
+
+                profileUnsubscribe = profileRef.onSnapshot((snapshot) => {
+                    void (async () => {
+                        const remote = snapshot.exists ? snapshot.data() : null;
+                        const remoteUpdatedAt = Number(remote?.updatedAt || 0);
+                        const localProfile = loadProfile() || {};
+                        const localUpdatedAt = Number(localProfile.updatedAt || 0);
+
+                        if (remote && remoteUpdatedAt > localUpdatedAt) {
+                            cloudApplyingSnapshot = true;
+                            try {
+                                saveLocalProfile({
+                                    name: remote.name || '',
+                                    email: remote.email || '',
+                                    updatedAt: remoteUpdatedAt
+                                }, false);
+                            } finally {
+                                cloudApplyingSnapshot = false;
+                            }
+                        }
+
+                        profileReady = true;
+                        cloudSyncReady = tasksReady && notesReady && profileReady;
+                        renderProfile();
+                        markReady();
+
+                        // If the user has a local profile but no cloud profile,
+                        // create it immediately.
+                        if (!remote && (localProfile.name || localProfile.email) && cloudSyncReady) {
+                            cloudPendingLocalChanges = true;
+                            scheduleCloudWorkspaceWrite();
+                        }
+                    })().catch((error) => {
+                        console.error('Profile sync failed', error);
+                        logFirebaseMessage('Profile sync error: ' + error.message);
+                    });
+                }, (error) => {
+                    console.error('Profile listener failed', error);
+                    logFirebaseMessage('Profile sync error: ' + error.message);
                 });
             }
 
@@ -1596,7 +1719,11 @@
                 cloudWriteTimer = null;
                 notesWriteTimer = null;
                 if (firestoreUnsubscribe) firestoreUnsubscribe();
+                if (notesUnsubscribe) notesUnsubscribe();
+                if (profileUnsubscribe) profileUnsubscribe();
                 firestoreUnsubscribe = null;
+                notesUnsubscribe = null;
+                profileUnsubscribe = null;
                 cloudSyncUser = null;
                 cloudSyncReady = false;
                 cloudSyncStarted = false;
@@ -1627,7 +1754,10 @@
                     };
                     localStorage.setItem(PROFILE_KEY, JSON.stringify(clean));
                     renderProfile();
-                    if (sync && !cloudApplyingSnapshot) scheduleCloudWorkspaceWrite();
+                    if (sync && !cloudApplyingSnapshot) {
+                        cloudPendingLocalChanges = true;
+                        scheduleCloudWorkspaceWrite();
+                    }
                 } catch (e) {
                     console.error('Failed to save profile', e);
                 }
@@ -2254,7 +2384,12 @@
                     e.preventDefault();
                     const name = document.getElementById('profileName').value.trim();
                     const email = document.getElementById('profileEmail').value.trim();
-                    saveLocalProfile({ name, email });
+                    saveLocalProfile({ name, email, updatedAt: Date.now() });
+                    renderProfile();
+                    if (cloudSyncReady) {
+                        cloudPendingLocalChanges = true;
+                        scheduleCloudWorkspaceWrite();
+                    }
                     closeAccountModal();
                 }
             });
@@ -2275,6 +2410,8 @@
             let firebaseReady = false;
             let firestoreDb = null;
             let firestoreUnsubscribe = null;
+            let notesUnsubscribe = null;
+            let profileUnsubscribe = null;
             let cloudSyncUser = null;
             let cloudSyncReady = false;
             let cloudSyncStarted = false;
