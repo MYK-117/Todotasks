@@ -759,6 +759,47 @@
             flex: 1 1 140px;
         }
 
+        .nav-btn { position: relative; }
+
+        .nav-count {
+            float: right;
+            min-width: 22px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: rgba(127, 155, 255, 0.14);
+            color: var(--muted);
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .nav-btn.active .nav-count {
+            background: rgba(255, 255, 255, 0.18);
+            color: inherit;
+        }
+
+        .task-header-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .danger-secondary {
+            border: 1px solid rgba(220, 80, 80, 0.35);
+            background: transparent;
+            color: #d85b5b;
+            border-radius: 10px;
+            padding: 7px 10px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        body.dark-mode .danger-secondary {
+            color: #ff8585;
+            border-color: rgba(255, 133, 133, 0.28);
+        }
+
         .sr-only {
             position: absolute;
             left: -9999px;
@@ -860,6 +901,7 @@
                 <button class="nav-btn" data-view="today">Today</button>
                 <button class="nav-btn" data-view="upcoming">Upcoming</button>
                 <button class="nav-btn" data-view="overdue">Overdue</button>
+                <button class="nav-btn recycle-nav-btn" data-view="recycle">Recycle Bin <span id="recycleCount" class="nav-count">0</span></button>
             </div>
 
             <div class="sidebar-section">
@@ -962,10 +1004,13 @@
                 <div class="task-panel-header">
                     <div>
                         <div class="section-title">Tasks</div>
-                        <div class="section-subtitle">Grouped into needs-to-do, overdue, and completed.</div>
+                        <div class="section-subtitle">Grouped into needs-to-do, overdue, completed, and your Recycle Bin.</div>
                     </div>
                     <div class="summary" id="taskSummary"></div>
-                    <div class="view-label" id="currentViewLabel">All Tasks</div>
+                    <div class="task-header-actions">
+                        <div class="view-label" id="currentViewLabel">All Tasks</div>
+                        <button type="button" id="emptyRecycleBtn" class="danger-secondary" hidden>Empty Bin</button>
+                    </div>
                 </div>
                 <div id="taskSections"></div>
             </section>
@@ -974,9 +1019,11 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const STORAGE_KEY = 'myk-task-list-v3';
+            const STORAGE_KEY = 'myk-workspace-data-v1';
+            const LEGACY_STORAGE_KEY = 'myk-task-list-v3';
             const FILTER_KEY = 'myk-task-dashboard-v1';
             const NOTES_KEY = 'myk-workspace-notes-v1';
+            const NOTES_UPDATED_KEY = 'myk-workspace-notes-updated-v1';
 
             const taskForm = document.getElementById('taskForm');
             const taskInput = document.getElementById('taskInput');
@@ -997,6 +1044,7 @@
             const statActive = document.getElementById('statActive');
             const statDone = document.getElementById('statDone');
             const statOverdue = document.getElementById('statOverdue');
+            const emptyRecycleBtn = document.getElementById('emptyRecycleBtn');
             const darkModeToggle = document.getElementById('darkModeToggle');
             const workspaceNotes = document.getElementById('workspaceNotes');
             const accountBtn = document.getElementById('accountBtn');
@@ -1078,12 +1126,41 @@
                 return date < today;
             }
 
-            function persistTasks() {
-                try {
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-                } catch (error) {
-                    console.error('Failed to save tasks', error);
+            const workspaceStore = {
+                readTasks() {
+                    try {
+                        const raw = localStorage.getItem(STORAGE_KEY);
+                        if (raw) {
+                            const parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) return parsed;
+                        }
+
+                        const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+                        if (legacyRaw) {
+                            const legacy = JSON.parse(legacyRaw);
+                            if (Array.isArray(legacy)) {
+                                localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+                                return legacy;
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('Failed to read workspace data', error);
+                    }
+                    return [];
+                },
+
+                writeTasks(nextTasks) {
+                    try {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextTasks));
+                    } catch (error) {
+                        console.error('Failed to save workspace data', error);
+                    }
                 }
+            };
+
+            function persistTasks() {
+                workspaceStore.writeTasks(tasks);
+                if (!cloudApplyingSnapshot) scheduleCloudWorkspaceWrite();
             }
 
             function persistState() {
@@ -1097,12 +1174,149 @@
             function persistNotes() {
                 try {
                     localStorage.setItem(NOTES_KEY, workspaceNotes.value);
+                    if (!cloudApplyingSnapshot) scheduleCloudWorkspaceWrite();
                 } catch (error) {
                     console.error('Failed to save notes', error);
                 }
             }
 
-            /* Profile (local-only) */
+            function cloudWorkspacePath(user) {
+                if (!firestoreDb || !user) return null;
+                return firestoreDb.collection('users').doc(user.uid).collection('workspace').doc('main');
+            }
+
+            function buildCloudPayload() {
+                const profile = loadProfile() || {};
+                const existingNoteStamp = Number(localStorage.getItem(NOTES_UPDATED_KEY) || 0);
+                return {
+                    tasks: tasks.map(sanitizeTask),
+                    notes: workspaceNotes.value || '',
+                    notesUpdatedAt: existingNoteStamp || Date.now(),
+                    profile: {
+                        name: String(profile.name || '').trim().slice(0, 80),
+                        email: String(profile.email || '').trim().slice(0, 160),
+                        updatedAt: Number(profile.updatedAt || 0)
+                    }
+                };
+            }
+
+            function scheduleCloudWorkspaceWrite() {
+                if (!cloudSyncReady || !cloudSyncUser || cloudApplyingSnapshot) return;
+                clearTimeout(cloudWriteTimer);
+                cloudWriteTimer = setTimeout(() => {
+                    writeCloudWorkspace().catch((error) => {
+                        console.error('Cloud workspace write failed', error);
+                        logFirebaseMessage('Cloud sync error: ' + error.message);
+                    });
+                }, 350);
+            }
+
+            async function writeCloudWorkspace() {
+                const ref = cloudWorkspacePath(cloudSyncUser);
+                if (!ref) return;
+                const payload = buildCloudPayload();
+                const serialized = JSON.stringify(payload);
+                if (serialized === cloudLastPayload) return;
+                await ref.set(payload);
+                cloudLastPayload = serialized;
+            }
+
+            async function startCloudSync(user) {
+                stopCloudSync();
+                if (!firestoreDb || !user) return;
+
+                cloudSyncUser = user;
+                cloudSyncStarted = true;
+                cloudSyncReady = false;
+                cloudLastPayload = '';
+                logFirebaseMessage('Connecting your workspace to Firestore…');
+
+                const ref = cloudWorkspacePath(user);
+                firestoreUnsubscribe = ref.onSnapshot(async (snapshot) => {
+                    const remote = snapshot.exists ? snapshot.data() : null;
+                    const localPayload = buildCloudPayload();
+
+                    if (!remote) {
+                        cloudSyncReady = true;
+                        await writeCloudWorkspace();
+                        logFirebaseMessage('Cloud sync is ready.');
+                        return;
+                    }
+
+                    cloudApplyingSnapshot = true;
+                    try {
+                        const remoteTasks = Array.isArray(remote.tasks) ? remote.tasks.map(sanitizeTask) : [];
+                        const localMap = new Map(tasks.map(task => [task.id, sanitizeTask(task)]));
+                        const remoteMap = new Map(remoteTasks.map(task => [task.id, task]));
+                        const mergedMap = new Map();
+
+                        for (const [id, localTask] of localMap) {
+                            const remoteTask = remoteMap.get(id);
+                            if (!remoteTask) mergedMap.set(id, localTask);
+                            else {
+                                const localTime = new Date(localTask.updatedAt || localTask.createdAt || 0).getTime();
+                                const remoteTime = new Date(remoteTask.updatedAt || remoteTask.createdAt || 0).getTime();
+                                mergedMap.set(id, remoteTime >= localTime ? remoteTask : localTask);
+                            }
+                        }
+                        for (const [id, remoteTask] of remoteMap) {
+                            if (!mergedMap.has(id)) mergedMap.set(id, remoteTask);
+                        }
+
+                        tasks = Array.from(mergedMap.values()).map(sanitizeTask);
+
+                        const remoteNotesStamp = Number(remote.notesUpdatedAt || 0);
+                        const localNotesStamp = Number(localPayload.notesUpdatedAt || 0);
+                        if (typeof remote.notes === 'string' && remoteNotesStamp >= localNotesStamp) {
+                            workspaceNotes.value = remote.notes;
+                            localStorage.setItem(NOTES_KEY, remote.notes);
+                            localStorage.setItem(NOTES_UPDATED_KEY, String(remoteNotesStamp || Date.now()));
+                        }
+
+                        const remoteProfile = remote.profile && typeof remote.profile === 'object' ? remote.profile : null;
+                        const localProfile = loadProfile() || {};
+                        const remoteProfileStamp = Number(remoteProfile?.updatedAt || 0);
+                        const localProfileStamp = Number(localProfile?.updatedAt || 0);
+                        if (remoteProfile && remoteProfileStamp >= localProfileStamp) {
+                            saveLocalProfile({
+                                name: remoteProfile.name || '',
+                                email: remoteProfile.email || '',
+                                updatedAt: remoteProfileStamp || Date.now()
+                            }, false);
+                        }
+
+                        persistTasks();
+                        render();
+                        renderProfile();
+                    } finally {
+                        cloudApplyingSnapshot = false;
+                    }
+
+                    cloudSyncReady = true;
+                    const mergedPayload = buildCloudPayload();
+                    cloudLastPayload = JSON.stringify(mergedPayload);
+                    await writeCloudWorkspace();
+                    logFirebaseMessage('Cloud sync is ready.');
+                }, (error) => {
+                    console.error('Firestore listener failed', error);
+                    cloudSyncReady = false;
+                    logFirebaseMessage('Cloud sync error: ' + error.message);
+                });
+            }
+
+            function stopCloudSync() {
+                clearTimeout(cloudWriteTimer);
+                cloudWriteTimer = null;
+                if (firestoreUnsubscribe) firestoreUnsubscribe();
+                firestoreUnsubscribe = null;
+                cloudSyncUser = null;
+                cloudSyncReady = false;
+                cloudSyncStarted = false;
+                cloudLastPayload = '';
+                cloudApplyingSnapshot = false;
+            }
+
+            /* Profile */
             function loadProfile() {
                 try {
                     const raw = localStorage.getItem(PROFILE_KEY);
@@ -1113,14 +1327,16 @@
                     return null;
                 }
             }
-            function saveLocalProfile(profile) {
+            function saveLocalProfile(profile, sync = true) {
                 try {
                     const clean = {
                         name: String(profile?.name || '').trim().slice(0, 80),
-                        email: String(profile?.email || '').trim().slice(0, 160)
+                        email: String(profile?.email || '').trim().slice(0, 160),
+                        updatedAt: Number(profile?.updatedAt || 0) || Date.now()
                     };
                     localStorage.setItem(PROFILE_KEY, JSON.stringify(clean));
                     renderProfile();
+                    if (sync && !cloudApplyingSnapshot) scheduleCloudWorkspaceWrite();
                 } catch (e) {
                     console.error('Failed to save profile', e);
                 }
@@ -1166,10 +1382,21 @@
                 const saved = localStorage.getItem(NOTES_KEY);
                 if (saved != null) {
                     workspaceNotes.value = saved;
+                    if (!localStorage.getItem(NOTES_UPDATED_KEY)) {
+                        localStorage.setItem(NOTES_UPDATED_KEY, String(Date.now()));
+                    }
                 }
             }
 
             function sanitizeTask(task) {
+                const now = new Date().toISOString();
+                const createdAt = typeof task.createdAt === 'string' && !Number.isNaN(new Date(task.createdAt))
+                    ? task.createdAt : now;
+                const updatedAt = typeof task.updatedAt === 'string' && !Number.isNaN(new Date(task.updatedAt))
+                    ? task.updatedAt : createdAt;
+                const deletedAt = typeof task.deletedAt === 'string' && !Number.isNaN(new Date(task.deletedAt))
+                    ? task.deletedAt : null;
+
                 return {
                     id: typeof task.id === 'string' && task.id ? task.id : uid(),
                     text: typeof task.text === 'string' && task.text.trim() ? task.text.trim() : '(empty)',
@@ -1178,21 +1405,21 @@
                     dueDate: typeof task.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(task.dueDate) ? task.dueDate : '',
                     dueTime: typeof task.dueTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(task.dueTime) ? task.dueTime : '',
                     done: !!task.done,
-                    createdAt: typeof task.createdAt === 'string' && !Number.isNaN(new Date(task.createdAt)) ? task.createdAt : new Date().toISOString(),
+                    createdAt,
+                    updatedAt,
+                    deletedAt
                 };
             }
 
+            function touchTask(task) {
+                task.updatedAt = new Date().toISOString();
+                return task;
+            }
+
             function loadTasks() {
-                try {
-                    const raw = localStorage.getItem(STORAGE_KEY);
-                    if (!raw) return;
-                    const parsed = JSON.parse(raw);
-                    if (!Array.isArray(parsed)) return;
-                    tasks = parsed.filter(Boolean).map(sanitizeTask);
-                } catch (error) {
-                    console.warn('Failed to load tasks', error);
-                    tasks = [];
-                }
+                const parsed = workspaceStore.readTasks();
+                tasks = Array.isArray(parsed) ? parsed.filter(Boolean).map(sanitizeTask) : [];
+                persistTasks();
             }
 
             function formatDate(value) {
@@ -1219,6 +1446,8 @@
 
             function getVisibleTasks() {
                 return tasks.filter((task) => {
+                    if (state.view === 'recycle') return !!task.deletedAt;
+                    if (task.deletedAt) return false;
                     if (state.view === 'today' && !isToday(task.dueDate)) return false;
                     if (state.view === 'upcoming' && !isUpcoming(task.dueDate, task.dueTime)) return false;
                     if (state.view === 'overdue' && !isOverdue(task.dueDate, task.done, task.dueTime)) return false;
@@ -1247,9 +1476,13 @@
             }
 
             function updateStats() {
-                const total = tasks.length;
-                const doneCount = tasks.filter((task) => task.done).length;
-                const overdueCount = tasks.filter((task) => isOverdue(task.dueDate, task.done, task.dueTime)).length;
+                const activeTasks = tasks.filter((task) => !task.deletedAt);
+                const total = activeTasks.length;
+                const doneCount = activeTasks.filter((task) => task.done).length;
+                const overdueCount = activeTasks.filter((task) => isOverdue(task.dueDate, task.done, task.dueTime)).length;
+                const recycleCount = tasks.filter((task) => !!task.deletedAt).length;
+                const recycleEl = document.getElementById('recycleCount');
+                if (recycleEl) recycleEl.textContent = recycleCount;
                 statTotal.textContent = total;
                 statActive.textContent = total - doneCount;
                 statDone.textContent = doneCount;
@@ -1262,6 +1495,7 @@
                     today: 'Today',
                     upcoming: 'Upcoming',
                     overdue: 'Overdue',
+                    recycle: 'Recycle Bin',
                 };
                 currentViewLabel.textContent = labels[state.view] || 'Tasks';
             }
@@ -1272,13 +1506,28 @@
                 updateStats();
                 updateViewLabel();
 
-                summaryEl.textContent = tasks.length
-                    ? `${tasks.filter((task) => task.done).length} of ${tasks.length} task${tasks.length === 1 ? '' : 's'} done`
+                if (emptyRecycleBtn) {
+                    emptyRecycleBtn.hidden = state.view !== 'recycle' || !tasks.some((task) => !!task.deletedAt);
+                }
+
+                const activeTasks = tasks.filter((task) => !task.deletedAt);
+                const deletedTasks = tasks.filter((task) => !!task.deletedAt);
+
+                if (state.view === 'recycle') {
+                    summaryEl.textContent = deletedTasks.length
+                        ? `${deletedTasks.length} deleted task${deletedTasks.length === 1 ? '' : 's'}`
+                        : 'Your Recycle Bin is empty.';
+                    renderSection('Recently Deleted', visible);
+                    return;
+                }
+
+                summaryEl.textContent = activeTasks.length
+                    ? `${activeTasks.filter((task) => task.done).length} of ${activeTasks.length} task${activeTasks.length === 1 ? '' : 's'} done`
                     : 'No tasks yet — add one above to get started.';
 
                 if (state.view === 'all') {
                     renderSection('Needs To Do', visible.filter((task) => !task.done && !isOverdue(task.dueDate, task.done, task.dueTime)));
-                    renderSection('Past Due', visible.filter((task) => isOverdue(task.dueDate, task.done)));
+                    renderSection('Past Due', visible.filter((task) => isOverdue(task.dueDate, task.done, task.dueTime)));
                     renderSection('Completed', visible.filter((task) => task.done));
                 } else {
                     renderSection(currentViewLabel.textContent || 'Tasks', visible);
@@ -1355,11 +1604,20 @@
                     const dueDate = document.createElement('span');
                     dueDate.className = 'due-date';
                     dueDate.textContent = formatDue(task);
-                    if (isOverdue(task.dueDate, task.done)) {
+                    if (isOverdue(task.dueDate, task.done, task.dueTime)) {
                         dueDate.classList.add('due-overdue');
                     }
 
                     meta.append(priority, category, dueDate);
+
+                    if (state.view === 'recycle' && task.deletedAt) {
+                        const deleted = document.createElement('span');
+                        const deletedDate = new Date(task.deletedAt);
+                        deleted.textContent = Number.isNaN(deletedDate.getTime())
+                            ? 'Deleted'
+                            : `Deleted: ${deletedDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`;
+                        meta.appendChild(deleted);
+                    }
                     info.append(title, meta);
                 }
 
@@ -1374,10 +1632,23 @@
                     const removeBtn = document.createElement('button');
                     removeBtn.type = 'button';
                     removeBtn.className = 'remove-btn';
-                    removeBtn.textContent = 'Remove';
+                    removeBtn.textContent = 'Move to Bin';
                     removeBtn.addEventListener('click', () => removeTask(task.id));
 
                     actions.append(editBtn, removeBtn);
+                } else if (state.view === 'recycle') {
+                    const restoreBtn = document.createElement('button');
+                    restoreBtn.type = 'button';
+                    restoreBtn.textContent = 'Restore';
+                    restoreBtn.addEventListener('click', () => restoreTask(task.id));
+
+                    const permanentBtn = document.createElement('button');
+                    permanentBtn.type = 'button';
+                    permanentBtn.className = 'remove-btn';
+                    permanentBtn.textContent = 'Delete Forever';
+                    permanentBtn.addEventListener('click', () => permanentlyDeleteTask(task.id));
+
+                    actions.append(restoreBtn, permanentBtn);
                 }
 
                 li.append(toggle, info, actions);
@@ -1460,6 +1731,8 @@
                     dueTime: dueTimeInput.value || '',
                     done: false,
                     createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    deletedAt: null,
                 });
                 taskForm.reset();
                 taskInput.focus();
@@ -1473,15 +1746,46 @@
                 const task = getTaskById(id);
                 if (!task) return;
                 task.done = !task.done;
+                touchTask(task);
                 persistTasks();
                 render();
             }
 
             function removeTask(id) {
                 const task = getTaskById(id);
-                if (!task) return;
-                if (!confirm(`Remove "${task.text}"? This can't be undone.`)) return;
+                if (!task || task.deletedAt) return;
+                if (!confirm(`Move "${task.text}" to the Recycle Bin?`)) return;
+                task.deletedAt = new Date().toISOString();
+                task.done = false;
+                delete task.editing;
+                touchTask(task);
+                persistTasks();
+                render();
+            }
+
+            function restoreTask(id) {
+                const task = getTaskById(id);
+                if (!task || !task.deletedAt) return;
+                task.deletedAt = null;
+                touchTask(task);
+                persistTasks();
+                render();
+            }
+
+            function permanentlyDeleteTask(id) {
+                const task = getTaskById(id);
+                if (!task || !task.deletedAt) return;
+                if (!confirm(`Permanently delete "${task.text}"? This cannot be undone.`)) return;
                 tasks = tasks.filter((item) => item.id !== id);
+                persistTasks();
+                render();
+            }
+
+            function emptyRecycleBin() {
+                const deletedCount = tasks.filter((task) => !!task.deletedAt).length;
+                if (!deletedCount) return;
+                if (!confirm(`Permanently delete ${deletedCount} task${deletedCount === 1 ? '' : 's'} from the Recycle Bin? This cannot be undone.`)) return;
+                tasks = tasks.filter((task) => !task.deletedAt);
                 persistTasks();
                 render();
             }
@@ -1513,18 +1817,28 @@
                 task.dueDate = updates.dueDate || '';
                 task.dueTime = updates.dueTime || '';
                 delete task.editing;
+                touchTask(task);
                 persistTasks();
                 render();
             }
 
             clearBtn.addEventListener('click', () => {
-                const doneCount = tasks.filter((task) => task.done).length;
+                const completedActive = tasks.filter((task) => task.done && !task.deletedAt);
+                const doneCount = completedActive.length;
                 if (doneCount === 0) return;
-                if (!confirm(`Clear ${doneCount} completed task${doneCount === 1 ? '' : 's'}? This can't be undone.`)) return;
-                tasks = tasks.filter((task) => !task.done);
+                if (!confirm(`Move ${doneCount} completed task${doneCount === 1 ? '' : 's'} to the Recycle Bin?`)) return;
+                const deletedAt = new Date().toISOString();
+                completedActive.forEach((task) => {
+                    task.deletedAt = deletedAt;
+                    task.done = false;
+                    delete task.editing;
+                    touchTask(task);
+                });
                 persistTasks();
                 render();
             });
+
+            emptyRecycleBtn && emptyRecycleBtn.addEventListener('click', emptyRecycleBin);
 
             filterDone.addEventListener('change', () => {
                 state.done = filterDone.value;
@@ -1546,6 +1860,12 @@
                 btn.addEventListener('click', () => {
                     state.view = btn.dataset.view;
                     setActiveNavButton(state.view);
+                    if (state.view === 'recycle') {
+                        state.category = '';
+                        state.done = 'all';
+                        setActiveCategoryButton('');
+                        filterDone.value = 'all';
+                    }
                     persistState();
                     render();
                 });
@@ -1584,6 +1904,9 @@
                     if (!Array.isArray(imported)) throw new Error('Invalid file format');
                     const sanitized = imported.filter(Boolean).map((item) => sanitizeTask({ ...item, id: undefined }));
                     tasks = sanitized.concat(tasks);
+                    tasks.forEach((task) => {
+                        if (!task.updatedAt) task.updatedAt = task.createdAt || new Date().toISOString();
+                    });
                     persistTasks();
                     render();
                 } catch (error) {
@@ -1605,6 +1928,7 @@
             });
 
             workspaceNotes.addEventListener('input', () => {
+                localStorage.setItem(NOTES_UPDATED_KEY, String(Date.now()));
                 persistNotes();
             });
 
@@ -1662,25 +1986,45 @@
             let firebaseAuth = null;
             let authUnsubscribe = null;
             let firebaseReady = false;
+            let firestoreDb = null;
+            let firestoreUnsubscribe = null;
+            let cloudSyncUser = null;
+            let cloudSyncReady = false;
+            let cloudSyncStarted = false;
+            let cloudWriteTimer = null;
+            let cloudLastPayload = '';
+            let cloudApplyingSnapshot = false;
 
             function initFirebase(cfg) {
                 if (!cfg) return console.warn('Please provide firebaseConfig');
                 firebaseReady = false;
-                logFirebaseMessage('Initializing Firebase auth...');
+                logFirebaseMessage('Initializing Firebase…');
                 const script = document.createElement('script');
                 script.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
                 script.onload = () => {
                     const s2 = document.createElement('script');
                     s2.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js';
                     s2.onload = () => {
-                        try {
-                            firebaseApp = window.firebase.initializeApp(cfg);
-                            firebaseAuth = window.firebase.auth();
-                            authUnsubscribe = firebaseAuth.onAuthStateChanged(handleAuthStateChanged);
-                        } catch (err) {
-                            console.error('Firebase init failed', err);
-                            logFirebaseMessage('Firebase init failed: ' + err.message);
-                        }
+                        const s3 = document.createElement('script');
+                        s3.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js';
+                        s3.onload = async () => {
+                            try {
+                                firebaseApp = window.firebase.initializeApp(cfg);
+                                firebaseAuth = window.firebase.auth();
+                                firestoreDb = window.firebase.firestore();
+                                try {
+                                    await firestoreDb.enablePersistence({ synchronizeTabs: true });
+                                } catch (persistenceError) {
+                                    console.warn('Firestore offline persistence unavailable:', persistenceError);
+                                }
+                                authUnsubscribe = firebaseAuth.onAuthStateChanged(handleAuthStateChanged);
+                            } catch (err) {
+                                console.error('Firebase init failed', err);
+                                logFirebaseMessage('Firebase init failed: ' + err.message);
+                            }
+                        };
+                        s3.onerror = () => logFirebaseMessage('Firestore could not be loaded. Check your internet connection.');
+                        document.head.appendChild(s3);
                     };
                     document.head.appendChild(s2);
                 };
@@ -1725,14 +2069,15 @@
                 firebaseReady = true;
                 renderAuthUI(user);
 
-                // Authentication changes are complete here; don't leave stale
-                // sign-up/sign-in controls or the auth modal on screen.
                 if (user) {
                     const backdrop = document.getElementById('modalBackdrop');
                     if (backdrop) {
                         backdrop.style.display = 'none';
                         backdrop.setAttribute('aria-hidden', 'true');
                     }
+                    startCloudSync(user);
+                } else {
+                    stopCloudSync();
                 }
             }
 
