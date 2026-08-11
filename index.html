@@ -93,6 +93,122 @@
             box-shadow: 0 10px 22px rgba(79, 124, 255, 0.2);
         }
 
+        .menu-card {
+            background: var(--panel-2);
+            border-radius: 18px;
+            padding: 16px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .menu-card h3 {
+            margin: 0;
+            font-size: 14px;
+            color: var(--muted);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .menu-card button {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: #ffffff;
+            color: var(--text);
+            text-align: left;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .account-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: var(--panel-2);
+        }
+
+        .avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-2));
+            color: white;
+            display: grid;
+            place-items: center;
+            font-weight: 800;
+        }
+
+        .notes-panel {
+            background: var(--panel);
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+            padding: 22px;
+        }
+
+        .notes-panel textarea {
+            width: 100%;
+            min-height: 130px;
+            resize: vertical;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            background: var(--panel-2);
+            color: var(--text);
+        }
+
+        .dark-mode {
+            --bg: #101523;
+            --panel: #17203c;
+            --panel-2: #1f2a52;
+            --text: #e6ecff;
+            --muted: #a0b0d4;
+            --border: rgba(255, 255, 255, 0.08);
+            --shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        body.dark-mode {
+            background: #0d1428;
+        }
+
+        body.dark-mode .task-panel,
+        body.dark-mode .controls-panel,
+        body.dark-mode .hero,
+        body.dark-mode .sidebar,
+        body.dark-mode .notes-panel,
+        body.dark-mode .menu-card {
+            background: #17203c;
+        }
+
+        body.dark-mode input,
+        body.dark-mode select,
+        body.dark-mode textarea,
+        body.dark-mode button {
+            background: #1f2a52;
+            border-color: rgba(255, 255, 255, 0.08);
+            color: var(--text);
+        }
+
+        body.dark-mode .actions button {
+            background: #25355f;
+            color: #e6ecff;
+        }
+
+        body.dark-mode .actions .remove-btn {
+            background: #c44a4a;
+        }
+
+        body.dark-mode .nav-btn.active,
+        body.dark-mode .category-btn.active,
+        body.dark-mode .topbar button.active {
+            background: linear-gradient(135deg, #7f9bff, #8ba7ff);
+        }
+
         .main-panel {
             display: flex;
             flex-direction: column;
@@ -100,17 +216,11 @@
         }
 
         .hero,
+        .controls-panel,
         .task-panel,
-        .controls-panel {
+        .notes-panel {
             background: var(--panel);
             border-radius: 24px;
-            box-shadow: var(--shadow);
-            padding: 22px;
-        }
-
-        .hero {
-            display: flex;
-            justify-content: space-between;
             align-items: center;
             gap: 20px;
             flex-wrap: wrap;
@@ -213,6 +323,19 @@
         .summary {
             color: var(--muted);
             font-size: 14px;
+        }
+
+        .view-label {
+            color: var(--muted);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .task-section {
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 18px;
         }
 
         ul {
@@ -414,6 +537,20 @@
                 <div class="brand-subtitle">Plan, organize, and track work</div>
             </div>
 
+            <div class="menu-card">
+                <h3>Menu</h3>
+                <button type="button" id="darkModeToggle">Toggle Dark Mode</button>
+                <button type="button" id="accountBtn">Account</button>
+            </div>
+
+            <div class="account-badge">
+                <div class="avatar">MY</div>
+                <div>
+                    <div style="font-weight:700;">Mikko</div>
+                    <div style="font-size:13px; color: var(--muted);">Local workspace</div>
+                </div>
+            </div>
+
             <div class="sidebar-section">
                 <h3>Views</h3>
                 <button class="nav-btn active" data-view="all">All Tasks</button>
@@ -437,7 +574,7 @@
             <section class="hero">
                 <div>
                     <h1>Task Dashboard</h1>
-                    <p>Keep your work organized with clear priorities and deadlines.</p>
+                    <p>Keep your work organized with priorities, notes, and sectioned task lists.</p>
                 </div>
                 <div class="stats-grid" id="statsGrid">
                     <div class="stat-card">
@@ -509,12 +646,22 @@
                 </div>
             </section>
 
+            <section class="notes-panel">
+                <div class="section-title">Notes</div>
+                <div class="section-subtitle">Write quick reminders or workspace notes here.</div>
+                <textarea id="workspaceNotes" placeholder="Meeting notes, reminders, or general context..."></textarea>
+            </section>
+
             <section class="task-panel">
                 <div class="task-panel-header">
-                    <div id="summary" class="summary" aria-live="polite"></div>
-                    <div id="currentViewLabel" class="summary"></div>
+                    <div>
+                        <div class="section-title">Tasks</div>
+                        <div class="section-subtitle">Grouped into needs-to-do, overdue, and completed.</div>
+                    </div>
+                    <div class="summary" id="taskSummary"></div>
+                    <div class="view-label" id="currentViewLabel">All Tasks</div>
                 </div>
-                <ul id="taskList" aria-live="polite" aria-label="Tasks"></ul>
+                <div id="taskSections"></div>
             </section>
         </main>
     </div>
@@ -523,43 +670,47 @@
         (function () {
             const STORAGE_KEY = 'myk-task-list-v3';
             const FILTER_KEY = 'myk-task-dashboard-v1';
+            const NOTES_KEY = 'myk-workspace-notes-v1';
 
             const taskForm = document.getElementById('taskForm');
             const taskInput = document.getElementById('taskInput');
             const prioritySelect = document.getElementById('prioritySelect');
             const categorySelect = document.getElementById('categorySelect');
             const dueDateInput = document.getElementById('dueDateInput');
-            const taskList = document.getElementById('taskList');
+            const taskSections = document.getElementById('taskSections');
             const filterDone = document.getElementById('filterDone');
             const sortBy = document.getElementById('sortBy');
             const clearBtn = document.getElementById('clearBtn');
             const exportBtn = document.getElementById('exportBtn');
             const importBtn = document.getElementById('importBtn');
             const importFile = document.getElementById('importFile');
-            const summaryEl = document.getElementById('summary');
+            const summaryEl = document.getElementById('taskSummary');
             const currentViewLabel = document.getElementById('currentViewLabel');
             const statTotal = document.getElementById('statTotal');
             const statActive = document.getElementById('statActive');
             const statDone = document.getElementById('statDone');
             const statOverdue = document.getElementById('statOverdue');
+            const darkModeToggle = document.getElementById('darkModeToggle');
+            const workspaceNotes = document.getElementById('workspaceNotes');
 
             const VALID_PRIORITIES = ['Low', 'Medium', 'High', 'Immediate Action'];
             const VALID_CATEGORIES = ['General', 'Study', 'Projects', 'Work', 'Personal'];
-            const PRIORITY_ORDER = { 'Immediate Action': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
+            const PRIORITY_ORDER = { 'Immediate Action': 0, High: 1, Medium: 2, Low: 3 };
 
             let tasks = [];
             let state = {
                 view: 'all',
                 category: '',
                 done: 'all',
-                sort: 'created'
+                sort: 'created',
+                darkMode: false,
             };
 
             const priorityClassMap = {
                 Low: 'priority-low',
                 Medium: 'priority-medium',
                 High: 'priority-high',
-                'Immediate Action': 'priority-immediate'
+                'Immediate Action': 'priority-immediate',
             };
 
             function uid() {
@@ -568,47 +719,55 @@
 
             function parseDate(value) {
                 if (!value) return null;
-                const d = new Date(value + 'T00:00:00');
-                return Number.isNaN(d.getTime()) ? null : d;
+                const date = new Date(value + 'T00:00:00');
+                return Number.isNaN(date.getTime()) ? null : date;
             }
 
             function isToday(value) {
-                const d = parseDate(value);
-                if (!d) return false;
+                const date = parseDate(value);
+                if (!date) return false;
                 const now = new Date();
-                return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+                return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
             }
 
             function isUpcoming(value) {
-                const d = parseDate(value);
-                if (!d) return false;
-                const now = new Date();
-                now.setHours(0, 0, 0, 0);
-                return d > now;
+                const date = parseDate(value);
+                if (!date) return false;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                return date > today;
             }
 
             function isOverdue(value, done) {
                 if (done) return false;
-                const d = parseDate(value);
-                if (!d) return false;
-                const now = new Date();
-                now.setHours(0, 0, 0, 0);
-                return d < now;
+                const date = parseDate(value);
+                if (!date) return false;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                return date < today;
             }
 
-            function persist() {
+            function persistTasks() {
                 try {
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-                } catch (e) {
-                    console.error('Failed to save tasks', e);
+                } catch (error) {
+                    console.error('Failed to save tasks', error);
                 }
             }
 
             function persistState() {
                 try {
                     localStorage.setItem(FILTER_KEY, JSON.stringify(state));
-                } catch (e) {
-                    // ignore
+                } catch (error) {
+                    console.error('Failed to save state', error);
+                }
+            }
+
+            function persistNotes() {
+                try {
+                    localStorage.setItem(NOTES_KEY, workspaceNotes.value);
+                } catch (error) {
+                    console.error('Failed to save notes', error);
                 }
             }
 
@@ -621,40 +780,47 @@
                     if (parsed.category !== undefined) state.category = parsed.category;
                     if (parsed.done) state.done = parsed.done;
                     if (parsed.sort) state.sort = parsed.sort;
-                } catch (e) {
-                    // ignore
+                    if (parsed.darkMode !== undefined) state.darkMode = parsed.darkMode;
+                } catch (error) {
+                    console.warn('Failed to load state', error);
                 }
             }
 
-            function sanitizeTask(it) {
+            function loadNotes() {
+                const saved = localStorage.getItem(NOTES_KEY);
+                if (saved != null) {
+                    workspaceNotes.value = saved;
+                }
+            }
+
+            function sanitizeTask(task) {
                 return {
-                    id: typeof it.id === 'string' && it.id ? it.id : uid(),
-                    text: typeof it.text === 'string' && it.text.trim() ? it.text.trim() : '(empty)',
-                    priority: VALID_PRIORITIES.includes(it.priority) ? it.priority : 'Low',
-                    category: VALID_CATEGORIES.includes(it.category) ? it.category : 'General',
-                    dueDate: typeof it.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(it.dueDate) ? it.dueDate : '',
-                    done: !!it.done,
-                    createdAt: typeof it.createdAt === 'string' && !Number.isNaN(new Date(it.createdAt)) ? it.createdAt : new Date().toISOString()
+                    id: typeof task.id === 'string' && task.id ? task.id : uid(),
+                    text: typeof task.text === 'string' && task.text.trim() ? task.text.trim() : '(empty)',
+                    priority: VALID_PRIORITIES.includes(task.priority) ? task.priority : 'Low',
+                    category: VALID_CATEGORIES.includes(task.category) ? task.category : 'General',
+                    dueDate: typeof task.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(task.dueDate) ? task.dueDate : '',
+                    done: !!task.done,
+                    createdAt: typeof task.createdAt === 'string' && !Number.isNaN(new Date(task.createdAt)) ? task.createdAt : new Date().toISOString(),
                 };
             }
 
-            function load() {
+            function loadTasks() {
                 try {
                     const raw = localStorage.getItem(STORAGE_KEY);
                     if (!raw) return;
                     const parsed = JSON.parse(raw);
                     if (!Array.isArray(parsed)) return;
                     tasks = parsed.filter(Boolean).map(sanitizeTask);
-                } catch (e) {
-                    console.warn('Could not parse tasks from storage, resetting', e);
+                } catch (error) {
+                    console.warn('Failed to load tasks', error);
                     tasks = [];
-                    localStorage.removeItem(STORAGE_KEY);
                 }
             }
 
-            function formatDate(d) {
-                if (!d) return '';
-                const date = new Date(d);
+            function formatDate(value) {
+                if (!value) return '';
+                const date = new Date(value);
                 if (Number.isNaN(date.getTime())) return '';
                 return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
             }
@@ -688,13 +854,12 @@
 
             function updateStats() {
                 const total = tasks.length;
-                const done = tasks.filter((t) => t.done).length;
-                const active = total - done;
-                const overdue = tasks.filter((t) => isOverdue(t.dueDate, t.done)).length;
+                const doneCount = tasks.filter((task) => task.done).length;
+                const overdueCount = tasks.filter((task) => isOverdue(task.dueDate, task.done)).length;
                 statTotal.textContent = total;
-                statActive.textContent = active;
-                statDone.textContent = done;
-                statOverdue.textContent = overdue;
+                statActive.textContent = total - doneCount;
+                statDone.textContent = doneCount;
+                statOverdue.textContent = overdueCount;
             }
 
             function updateViewLabel() {
@@ -702,95 +867,127 @@
                     all: 'All Tasks',
                     today: 'Today',
                     upcoming: 'Upcoming',
-                    overdue: 'Overdue'
+                    overdue: 'Overdue',
                 };
                 currentViewLabel.textContent = labels[state.view] || 'Tasks';
             }
 
             function render() {
-                taskList.innerHTML = '';
+                taskSections.innerHTML = '';
                 const visible = sortedTasks(getVisibleTasks());
                 updateStats();
                 updateViewLabel();
 
-                const doneCount = tasks.filter((t) => t.done).length;
                 summaryEl.textContent = tasks.length
-                    ? `${doneCount} of ${tasks.length} task${tasks.length === 1 ? '' : 's'} done`
+                    ? `${tasks.filter((task) => task.done).length} of ${tasks.length} task${tasks.length === 1 ? '' : 's'} done`
                     : 'No tasks yet — add one above to get started.';
 
-                if (visible.length === 0) {
-                    const empty = document.createElement('li');
+                if (state.view === 'all') {
+                    renderSection('Needs To Do', visible.filter((task) => !task.done && !isOverdue(task.dueDate, task.done)));
+                    renderSection('Past Due', visible.filter((task) => isOverdue(task.dueDate, task.done)));
+                    renderSection('Completed', visible.filter((task) => task.done));
+                } else {
+                    renderSection(currentViewLabel.textContent || 'Tasks', visible);
+                }
+            }
+
+            function renderSection(title, tasksInSection) {
+                const section = document.createElement('div');
+                section.className = 'task-section';
+
+                const header = document.createElement('div');
+                header.style.display = 'flex';
+                header.style.justifyContent = 'space-between';
+                header.style.alignItems = 'center';
+                header.style.marginBottom = '12px';
+
+                const titleEl = document.createElement('div');
+                titleEl.style.fontSize = '18px';
+                titleEl.style.fontWeight = '700';
+                titleEl.textContent = title;
+
+                const countEl = document.createElement('div');
+                countEl.style.color = 'var(--muted)';
+                countEl.style.fontSize = '13px';
+                countEl.textContent = `${tasksInSection.length} task${tasksInSection.length === 1 ? '' : 's'}`;
+
+                header.append(titleEl, countEl);
+                section.appendChild(header);
+
+                if (tasksInSection.length === 0) {
+                    const empty = document.createElement('div');
                     empty.className = 'empty-state';
-                    empty.textContent = tasks.length === 0
-                        ? 'Nothing here yet. Add your first task above.'
-                        : 'No tasks match the current view and filters.';
-                    taskList.appendChild(empty);
-                    return;
+                    empty.textContent = `No tasks in ${title.toLowerCase()}.`;
+                    section.appendChild(empty);
+                } else {
+                    const list = document.createElement('ul');
+                    tasksInSection.forEach((task) => list.appendChild(renderTaskItem(task)));
+                    section.appendChild(list);
                 }
 
-                visible.forEach((task) => {
-                    const li = document.createElement('li');
-                    li.setAttribute('data-id', task.id);
-                    if (task.done) li.classList.add('done');
+                taskSections.appendChild(section);
+            }
 
-                    const toggle = document.createElement('input');
-                    toggle.type = 'checkbox';
-                    toggle.className = 'task-toggle';
-                    toggle.checked = task.done;
-                    toggle.addEventListener('change', () => toggleDone(task.id));
+            function renderTaskItem(task) {
+                const li = document.createElement('li');
+                if (task.done) li.classList.add('done');
 
-                    const info = document.createElement('div');
-                    info.className = 'task-info';
+                const toggle = document.createElement('input');
+                toggle.type = 'checkbox';
+                toggle.className = 'task-toggle';
+                toggle.checked = task.done;
+                toggle.addEventListener('change', () => toggleDone(task.id));
 
-                    if (task.editing) {
-                        info.appendChild(buildEditRow(task));
-                    } else {
-                        const title = document.createElement('div');
-                        title.className = 'task-title';
-                        title.textContent = task.text;
+                const info = document.createElement('div');
+                info.className = 'task-info';
 
-                        const meta = document.createElement('div');
-                        meta.className = 'task-meta';
+                if (task.editing) {
+                    info.appendChild(buildEditRow(task));
+                } else {
+                    const title = document.createElement('div');
+                    title.className = 'task-title';
+                    title.textContent = task.text;
 
-                        const pr = document.createElement('span');
-                        pr.className = priorityClassMap[task.priority] || 'priority-unknown';
-                        pr.textContent = `${task.priority || 'Unknown'} Priority`;
+                    const meta = document.createElement('div');
+                    meta.className = 'task-meta';
 
-                        const cat = document.createElement('span');
-                        cat.textContent = `Category: ${task.category}`;
+                    const priority = document.createElement('span');
+                    priority.className = priorityClassMap[task.priority] || 'priority-unknown';
+                    priority.textContent = `${task.priority || 'Unknown'} Priority`;
 
-                        const due = document.createElement('span');
-                        due.className = 'due-date';
-                        due.textContent = task.dueDate ? `Due: ${formatDate(task.dueDate)}` : 'Due: No date';
-                        if (isOverdue(task.dueDate, task.done)) {
-                            due.classList.add('due-overdue');
-                        }
+                    const category = document.createElement('span');
+                    category.textContent = `Category: ${task.category}`;
 
-                        meta.append(pr, cat, due);
-                        info.append(title, meta);
+                    const dueDate = document.createElement('span');
+                    dueDate.className = 'due-date';
+                    dueDate.textContent = task.dueDate ? `Due: ${formatDate(task.dueDate)}` : 'Due: No date';
+                    if (isOverdue(task.dueDate, task.done)) {
+                        dueDate.classList.add('due-overdue');
                     }
 
-                    const actions = document.createElement('span');
-                    actions.className = 'actions';
+                    meta.append(priority, category, dueDate);
+                    info.append(title, meta);
+                }
 
-                    if (!task.editing) {
-                        const editBtn = document.createElement('button');
-                        editBtn.type = 'button';
-                        editBtn.textContent = 'Edit';
-                        editBtn.addEventListener('click', () => startEdit(task.id));
+                const actions = document.createElement('span');
+                actions.className = 'actions';
+                if (!task.editing) {
+                    const editBtn = document.createElement('button');
+                    editBtn.type = 'button';
+                    editBtn.textContent = 'Edit';
+                    editBtn.addEventListener('click', () => startEdit(task.id));
 
-                        const removeBtn = document.createElement('button');
-                        removeBtn.type = 'button';
-                        removeBtn.className = 'remove-btn';
-                        removeBtn.textContent = 'Remove';
-                        removeBtn.addEventListener('click', () => removeTask(task.id));
+                    const removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'remove-btn';
+                    removeBtn.textContent = 'Remove';
+                    removeBtn.addEventListener('click', () => removeTask(task.id));
 
-                        actions.append(editBtn, removeBtn);
-                    }
+                    actions.append(editBtn, removeBtn);
+                }
 
-                    li.append(toggle, info, actions);
-                    taskList.appendChild(li);
-                });
+                li.append(toggle, info, actions);
+                return li;
             }
 
             function buildEditRow(task) {
@@ -803,21 +1000,21 @@
                 textInput.setAttribute('aria-label', 'Edit task description');
 
                 const prioritySel = document.createElement('select');
-                VALID_PRIORITIES.forEach((p) => {
-                    const opt = document.createElement('option');
-                    opt.value = p;
-                    opt.textContent = p;
-                    if (p === task.priority) opt.selected = true;
-                    prioritySel.appendChild(opt);
+                VALID_PRIORITIES.forEach((priority) => {
+                    const option = document.createElement('option');
+                    option.value = priority;
+                    option.textContent = priority;
+                    if (priority === task.priority) option.selected = true;
+                    prioritySel.appendChild(option);
                 });
 
                 const categorySel = document.createElement('select');
-                VALID_CATEGORIES.forEach((c) => {
-                    const opt = document.createElement('option');
-                    opt.value = c;
-                    opt.textContent = c;
-                    if (c === task.category) opt.selected = true;
-                    categorySel.appendChild(opt);
+                VALID_CATEGORIES.forEach((category) => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    if (category === task.category) option.selected = true;
+                    categorySel.appendChild(option);
                 });
 
                 const dueInput = document.createElement('input');
@@ -831,7 +1028,7 @@
                     text: textInput.value,
                     priority: prioritySel.value,
                     category: categorySel.value,
-                    dueDate: dueInput.value
+                    dueDate: dueInput.value,
                 }));
 
                 const cancelBtn = document.createElement('button');
@@ -845,78 +1042,84 @@
 
             function addTask(task) {
                 tasks.unshift(task);
-                persist();
+                persistTasks();
                 render();
             }
 
-            taskForm.addEventListener('submit', (e) => {
-                e.preventDefault();
+            taskForm.addEventListener('submit', (event) => {
+                event.preventDefault();
                 const text = taskInput.value.trim();
                 if (!text) return;
-                const newTask = {
+                addTask({
                     id: uid(),
                     text,
                     priority: prioritySelect.value,
                     category: categorySelect.value,
                     dueDate: dueDateInput.value || '',
                     done: false,
-                    createdAt: new Date().toISOString()
-                };
-                addTask(newTask);
+                    createdAt: new Date().toISOString(),
+                });
                 taskForm.reset();
                 taskInput.focus();
             });
 
+            function getTaskById(id) {
+                return tasks.find((task) => task.id === id);
+            }
+
             function toggleDone(id) {
-                const t = tasks.find((item) => item.id === id);
-                if (!t) return;
-                t.done = !t.done;
-                persist();
+                const task = getTaskById(id);
+                if (!task) return;
+                task.done = !task.done;
+                persistTasks();
                 render();
             }
 
             function removeTask(id) {
-                const t = tasks.find((item) => item.id === id);
-                if (!t) return;
-                if (!confirm(`Remove "${t.text}"? This can't be undone.`)) return;
+                const task = getTaskById(id);
+                if (!task) return;
+                if (!confirm(`Remove "${task.text}"? This can't be undone.`)) return;
                 tasks = tasks.filter((item) => item.id !== id);
-                persist();
+                persistTasks();
                 render();
             }
 
             function startEdit(id) {
-                tasks.forEach((item) => { if (item.id !== id) delete item.editing; });
-                const t = tasks.find((item) => item.id === id);
-                if (!t) return;
-                t.editing = true;
+                tasks.forEach((task) => {
+                    if (task.id !== id) delete task.editing;
+                });
+                const task = getTaskById(id);
+                if (!task) return;
+                task.editing = true;
                 render();
             }
 
             function cancelEdit(id) {
-                const t = tasks.find((item) => item.id === id);
-                if (t) delete t.editing;
+                const task = getTaskById(id);
+                if (!task) return;
+                delete task.editing;
                 render();
             }
 
             function saveEdit(id, updates) {
-                const t = tasks.find((item) => item.id === id);
-                if (!t) return;
+                const task = getTaskById(id);
+                if (!task) return;
                 const text = (updates.text || '').trim();
-                if (text) t.text = text;
-                if (VALID_PRIORITIES.includes(updates.priority)) t.priority = updates.priority;
-                if (VALID_CATEGORIES.includes(updates.category)) t.category = updates.category;
-                t.dueDate = updates.dueDate || '';
-                delete t.editing;
-                persist();
+                if (text) task.text = text;
+                if (VALID_PRIORITIES.includes(updates.priority)) task.priority = updates.priority;
+                if (VALID_CATEGORIES.includes(updates.category)) task.category = updates.category;
+                task.dueDate = updates.dueDate || '';
+                delete task.editing;
+                persistTasks();
                 render();
             }
 
             clearBtn.addEventListener('click', () => {
-                const doneCount = tasks.filter((t) => t.done).length;
+                const doneCount = tasks.filter((task) => task.done).length;
                 if (doneCount === 0) return;
                 if (!confirm(`Clear ${doneCount} completed task${doneCount === 1 ? '' : 's'}? This can't be undone.`)) return;
-                tasks = tasks.filter((t) => !t.done);
-                persist();
+                tasks = tasks.filter((task) => !task.done);
+                persistTasks();
                 render();
             });
 
@@ -932,21 +1135,27 @@
                 render();
             });
 
+            function setActiveNavButton(view) {
+                document.querySelectorAll('.nav-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.view === view));
+            }
+
             document.querySelectorAll('.nav-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
-                    document.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
-                    btn.classList.add('active');
                     state.view = btn.dataset.view;
+                    setActiveNavButton(state.view);
                     persistState();
                     render();
                 });
             });
 
+            function setActiveCategoryButton(category) {
+                document.querySelectorAll('.category-btn').forEach((btn) => btn.classList.toggle('active', (btn.dataset.category || '') === category));
+            }
+
             document.querySelectorAll('.category-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
-                    document.querySelectorAll('.category-btn').forEach((b) => b.classList.remove('active'));
-                    btn.classList.add('active');
                     state.category = btn.dataset.category || '';
+                    setActiveCategoryButton(state.category);
                     persistState();
                     render();
                 });
@@ -963,8 +1172,8 @@
             });
 
             importBtn.addEventListener('click', () => importFile.click());
-            importFile.addEventListener('change', async (e) => {
-                const file = e.target.files && e.target.files[0];
+            importFile.addEventListener('change', async (event) => {
+                const file = event.target.files && event.target.files[0];
                 if (!file) return;
                 try {
                     const text = await file.text();
@@ -972,28 +1181,39 @@
                     if (!Array.isArray(imported)) throw new Error('Invalid file format');
                     const sanitized = imported.filter(Boolean).map((item) => sanitizeTask({ ...item, id: undefined }));
                     tasks = sanitized.concat(tasks);
-                    persist();
+                    persistTasks();
                     render();
-                } catch (err) {
-                    alert('Failed to import: ' + err.message);
+                } catch (error) {
+                    alert('Failed to import tasks: ' + error.message);
                 } finally {
                     importFile.value = '';
                 }
             });
 
+            function applyDarkMode() {
+                document.body.classList.toggle('dark-mode', state.darkMode);
+                darkModeToggle.textContent = state.darkMode ? 'Light Mode' : 'Dark Mode';
+            }
+
+            darkModeToggle.addEventListener('click', () => {
+                state.darkMode = !state.darkMode;
+                persistState();
+                applyDarkMode();
+            });
+
+            workspaceNotes.addEventListener('input', () => {
+                persistNotes();
+            });
+
             loadState();
-            load();
+            loadTasks();
+            loadNotes();
             filterDone.value = state.done;
             sortBy.value = state.sort;
-            document.querySelectorAll('.nav-btn').forEach((btn) => {
-                if (btn.dataset.view === state.view) btn.classList.add('active');
-            });
-            document.querySelectorAll('.category-btn').forEach((btn) => {
-                if ((btn.dataset.category || '') === (state.category || '')) btn.classList.add('active');
-            });
+            setActiveNavButton(state.view);
+            setActiveCategoryButton(state.category);
+            applyDarkMode();
             render();
-
-            window._taskApp = { getTasks: () => tasks, persist, render };
         })();
     </script>
 </body>
