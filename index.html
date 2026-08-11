@@ -1473,13 +1473,23 @@
                 cloudWriteTimer = setTimeout(async () => {
                     try {
                         await writeCloudWorkspace();
-                        await Promise.allSettled([
+
+                        const results = await Promise.allSettled([
                             writeCloudNotes(),
                             writeCloudProfile()
                         ]);
+
+                        const rejected = results.filter(result => result.status === 'rejected');
+                        if (rejected.length) {
+                            console.warn('Some secondary cloud writes failed:', rejected);
+                            logFirebaseMessage('Tasks synced; profile/notes need attention.');
+                        }
                     } catch (error) {
                         console.error('Cloud workspace write failed', error);
-                        logFirebaseMessage('Cloud sync error: ' + error.message);
+                        const detail = error?.code ? error.code + ': ' + error.message : error.message;
+                        console.error('Cloud workspace write failed:', error);
+                        logFirebaseMessage('Cloud sync error: ' + detail);
+                        showSyncError('Sync error: ' + detail);
                         setSyncIndicator('offline', 'Sync error');
                     }
                 }, 120);
@@ -1498,9 +1508,10 @@
 
                 setSyncIndicator('syncing', 'Saving…');
                 await ref.set({
-                    ...payload,
+                    tasks: payload.tasks,
+                    recycleBin: payload.recycleBin || [],
                     syncUpdatedAt: Date.now()
-                });
+                }, { merge: true });
                 cloudLastPayload = serialized;
                 cloudPendingLocalChanges = false;
                 updateSyncDebug(cloudSyncUser, 'cloud tasks: ' + payload.tasks.length);
@@ -2555,7 +2566,7 @@
                     const data = snap.exists ? snap.data() : null;
                     const count = Array.isArray(data?.tasks) ? data.tasks.length : 0;
 
-                    updateSyncDebug(user, 'cloud tasks: ' + count);
+                    updateSyncDebug(user, 'cloud tasks: ' + count + ' • workspace/main');
 
                     if (data && Array.isArray(data.tasks)) {
                         cloudApplyingSnapshot = true;
