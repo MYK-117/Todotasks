@@ -7,19 +7,19 @@
     <title>MYK Workspace Task Board</title>
     <style>
         :root {
-            --bg: #f4f7ff;
+            --bg: #f4f6fa;
             --panel: #ffffff;
-            --panel-2: #f8faff;
-            --text: #223049;
-            --muted: #68728d;
-            --primary: #4f7cff;
-            --primary-2: #6a8dff;
-            --danger: #e74c3c;
-            --success: #2e8b57;
-            --warning: #d28a00;
-            --overdue: #c33a3a;
-            --border: #e6ebf5;
-            --shadow: 0 16px 40px rgba(17, 29, 74, 0.08);
+            --panel-2: #f8f9fc;
+            --text: #172033;
+            --muted: #667085;
+            --primary: #4f46e5;
+            --primary-2: #6366f1;
+            --danger: #dc4b4b;
+            --success: #2f8f61;
+            --warning: #b7791f;
+            --overdue: #c23b3b;
+            --border: #e3e7ef;
+            --shadow: 0 10px 28px rgba(20, 31, 56, 0.06);
         }
 
         * {
@@ -29,7 +29,7 @@
         body {
             margin: 0;
             font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-            background: linear-gradient(135deg, #eef4ff, #f7f0ff);
+            background: var(--bg);
             color: var(--text);
             font-size: 16px;
             -webkit-font-smoothing: antialiased;
@@ -116,7 +116,7 @@
             padding: 10px 12px;
             border-radius: 12px;
             border: 1px solid var(--border);
-            background: #ffffff;
+            background: var(--panel);
             color: var(--text);
             text-align: left;
             cursor: pointer;
@@ -158,67 +158,6 @@
             padding-bottom: 6px;
         }
 
-        .workspace-display-card {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            padding: 16px;
-            border-radius: 18px;
-            background: var(--panel-2);
-            border: 1px solid var(--border);
-        }
-
-        .workspace-display-card .display-label {
-            color: var(--muted);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-        }
-
-        .workspace-display-card .display-name {
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--text);
-        }
-
-        .workspace-display-card button {
-            width: fit-content;
-            padding: 8px 12px;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            background: #ffffff;
-            color: var(--text);
-            cursor: pointer;
-            font-weight: 600;
-        }
-
-        .workspace-display-edit {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: 8px;
-        }
-
-        .workspace-display-edit input {
-            min-width: 0;
-            width: 100%;
-            padding: 9px 10px;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            background: var(--panel);
-            color: var(--text);
-        }
-
-        .workspace-secondary-btn {
-            background: transparent !important;
-            color: var(--muted) !important;
-            border-color: var(--border) !important;
-        }
-
-        .workspace-display-edit button {
-            width: auto;
-            white-space: nowrap;
-        }
-
         .notes-panel {
             background: var(--panel);
             border-radius: 24px;
@@ -228,7 +167,7 @@
 
         .notes-panel textarea {
             width: 100%;
-            min-height: 180px;
+            min-height: 150px;
             resize: vertical;
             border-radius: 16px;
             border: 1px solid var(--border);
@@ -260,7 +199,6 @@
         body.dark-mode .sidebar,
         body.dark-mode .notes-panel,
         body.dark-mode .menu-card,
-        body.dark-mode .workspace-display-card,
         body.dark-mode .account-badge {
             background: var(--panel);
             color: var(--text);
@@ -277,7 +215,6 @@
         body.dark-mode select,
         body.dark-mode textarea,
         body.dark-mode .menu-card button,
-        body.dark-mode .workspace-display-card button,
         body.dark-mode .actions button,
         body.dark-mode .empty-state {
             background: var(--panel-2);
@@ -351,11 +288,36 @@
         .task-panel,
         .notes-panel {
             background: var(--panel);
-            border-radius: 20px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 22px;
+            box-shadow: var(--shadow);
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(360px, 1fr);
+            gap: 22px;
             align-items: center;
-            gap: 20px;
-            flex-wrap: wrap;
-            padding: 20px;
+        }
+
+        .task-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: stretch;
+        }
+
+        .notes-panel {
+            display: block;
+        }
+
+        .notes-panel .section-title {
+            margin-bottom: 4px;
+        }
+
+        .notes-panel .section-subtitle {
+            margin-bottom: 14px;
         }
 
         .hero h1 {
@@ -404,7 +366,7 @@
 
         .form-grid {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 0.9fr;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 0.9fr;
             gap: 10px;
             align-items: end;
         }
@@ -431,6 +393,20 @@
             filter: brightness(1.05);
         }
 
+        @media (max-width: 900px) {
+            .form-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .form-grid > :first-child {
+                grid-column: 1 / -1;
+            }
+
+            .form-grid > button {
+                grid-column: 1 / -1;
+            }
+        }
+
         .controls-row {
             display: flex;
             gap: 10px;
@@ -445,11 +421,11 @@
         }
 
         .task-panel-header {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto;
             align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
+            gap: 16px;
+            width: 100%;
         }
 
         .summary {
@@ -463,11 +439,18 @@
             margin-top: 4px;
         }
 
+        #taskSections {
+            display: grid;
+            gap: 12px;
+            width: 100%;
+        }
+
         .task-section {
+            width: 100%;
             background: var(--panel-2);
             border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 18px;
+            border-radius: 16px;
+            padding: 16px;
         }
 
         ul {
@@ -487,8 +470,8 @@
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 12px 14px;
-            background: #ffffff;
-            box-shadow: 0 6px 18px rgba(17, 29, 74, 0.04);
+            background: var(--panel);
+            box-shadow: 0 4px 14px rgba(20, 31, 56, 0.04);
         }
 
         .task-toggle {
@@ -559,8 +542,8 @@
         }
 
         .actions button {
-            background: #eef1f6;
-            color: #334;
+            background: #eef1f5;
+            color: #344054;
             border: none;
             padding: 8px 10px;
             border-radius: 8px;
@@ -580,9 +563,9 @@
 
         .empty-state {
             text-align: center;
-            padding: 28px 12px;
+            padding: 22px 16px;
             color: var(--muted);
-            background: #fcfdff;
+            background: var(--panel);
             border: 1px dashed var(--border);
             border-radius: 16px;
         }
@@ -794,6 +777,18 @@
         }
 
         @media (max-width: 980px) {
+            .hero {
+                grid-template-columns: 1fr;
+            }
+
+            .task-panel-header {
+                grid-template-columns: 1fr auto;
+            }
+
+            .view-label {
+                grid-column: 1 / -1;
+            }
+
             .app-shell {
                 grid-template-columns: 1fr;
             }
@@ -859,20 +854,7 @@
                     <div style="font-weight:700;">Guest</div>
                     <div style="font-size:13px; color: var(--muted);">Local workspace</div>
                 </div>
-            </div>
-
-            <div class="workspace-display-card">
-                <div class="display-label">Workspace display</div>
-                <div class="display-name" id="workspaceDisplayName">Guest</div>
-                <div class="workspace-display-edit">
-                    <input id="workspaceDisplayInput" type="text" maxlength="60"
-                        placeholder="Workspace display name" aria-label="Workspace display name" />
-                    <button type="button" id="saveWorkspaceDisplayBtn">Save</button>
-                </div>
-                <button type="button" id="editDisplayBtn" class="workspace-secondary-btn">Account settings</button>
-            </div>
-
-            <div class="sidebar-section">
+            </div><div class="sidebar-section">
                 <h3>Views</h3>
                 <button class="nav-btn active" data-view="all">All Tasks</button>
                 <button class="nav-btn" data-view="today">Today</button>
@@ -942,6 +924,9 @@
                     <label class="sr-only" for="dueDateInput">Due date</label>
                     <input id="dueDateInput" type="date" />
 
+                    <label class="sr-only" for="dueTimeInput">Due time</label>
+                    <input id="dueTimeInput" type="time" step="60" aria-label="Due time" />
+
                     <button type="submit">Add Task</button>
                 </form>
 
@@ -998,6 +983,7 @@
             const prioritySelect = document.getElementById('prioritySelect');
             const categorySelect = document.getElementById('categorySelect');
             const dueDateInput = document.getElementById('dueDateInput');
+            const dueTimeInput = document.getElementById('dueTimeInput');
             const taskSections = document.getElementById('taskSections');
             const filterDone = document.getElementById('filterDone');
             const sortBy = document.getElementById('sortBy');
@@ -1015,7 +1001,6 @@
             const workspaceNotes = document.getElementById('workspaceNotes');
             const accountBtn = document.getElementById('accountBtn');
             const PROFILE_KEY = 'myk-profile-v1';
-            const WORKSPACE_DISPLAY_KEY = 'myk-workspace-display-v1';
 
             const VALID_PRIORITIES = ['Low', 'Medium', 'High', 'Immediate Action'];
             const VALID_CATEGORIES = ['General', 'Study', 'Projects', 'Work', 'Personal'];
@@ -1047,23 +1032,45 @@
                 return Number.isNaN(date.getTime()) ? null : date;
             }
 
+            function parseDueDateTime(dateValue, timeValue) {
+                if (!dateValue) return null;
+                const time = /^([01]\\d|2[0-3]):([0-5]\\d)$/.test(timeValue || '') ? timeValue : '23:59';
+                const date = new Date(`${dateValue}T${time}:00`);
+                return Number.isNaN(date.getTime()) ? null : date;
+            }
+
             function isToday(value) {
                 const date = parseDate(value);
                 if (!date) return false;
                 const now = new Date();
-                return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+                return date.getFullYear() === now.getFullYear() &&
+                    date.getMonth() === now.getMonth() &&
+                    date.getDate() === now.getDate();
             }
 
-            function isUpcoming(value) {
+            function isUpcoming(value, timeValue) {
                 const date = parseDate(value);
                 if (!date) return false;
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-                return date > today;
+                if (date > today) return true;
+                if (date < today) return false;
+                const due = parseDueDateTime(value, timeValue);
+                return !!due && due > new Date();
             }
 
-            function isOverdue(value, done) {
+            function isOverdue(value, done, timeValue) {
                 if (done) return false;
+                if (!value) return false;
+
+                // A task with an exact time becomes overdue at that exact
+                // minute. A date-only task keeps the original end-of-day
+                // behavior so existing tasks remain compatible.
+                if (timeValue) {
+                    const due = parseDueDateTime(value, timeValue);
+                    return !!due && due < new Date();
+                }
+
                 const date = parseDate(value);
                 if (!date) return false;
                 const today = new Date();
@@ -1106,29 +1113,6 @@
                     return null;
                 }
             }
-
-            function loadWorkspaceDisplayName() {
-                try {
-                    return (localStorage.getItem(WORKSPACE_DISPLAY_KEY) || '').trim();
-                } catch (e) {
-                    return '';
-                }
-            }
-
-            function saveWorkspaceDisplayName(name) {
-                const value = (name || '').trim().slice(0, 60);
-                try {
-                    if (value) {
-                        localStorage.setItem(WORKSPACE_DISPLAY_KEY, value);
-                    } else {
-                        localStorage.removeItem(WORKSPACE_DISPLAY_KEY);
-                    }
-                } catch (e) {
-                    console.error('Failed to save workspace display name', e);
-                }
-                renderProfile();
-            }
-
             function saveLocalProfile(profile) {
                 try {
                     const clean = {
@@ -1145,7 +1129,6 @@
             function renderProfile() {
                 const localProfile = loadProfile() || {};
                 const user = firebaseAuth?.currentUser;
-                const workspaceName = loadWorkspaceDisplayName();
                 const profile = {
                     name: localProfile.name || user?.displayName || user?.email || 'Guest',
                     email: localProfile.email || user?.email || '',
@@ -1154,18 +1137,14 @@
                 const badgeName = document.querySelector('.account-badge div div');
                 const badgeSub = document.querySelector('.account-badge div div + div');
                 const avatar = document.querySelector('.avatar');
-                const displayNameEl = document.getElementById('workspaceDisplayName');
-                const workspaceInput = document.getElementById('workspaceDisplayInput');
-                const modalWorkspaceInput = document.getElementById('modalWorkspaceDisplay');
-
-                const displayName = workspaceName || profile.name || 'Guest';
 
                 if (badgeName) badgeName.textContent = profile.name || 'Guest';
-                if (badgeSub) badgeSub.textContent = profile.email ? profile.email : (user ? 'Signed in via Firebase' : 'Local workspace');
+                if (badgeSub) {
+                    badgeSub.textContent = profile.email
+                        ? profile.email
+                        : (user ? 'Signed in via Firebase' : 'Local workspace');
+                }
                 if (avatar) avatar.textContent = (profile.name || 'G').slice(0, 2).toUpperCase();
-                if (displayNameEl) displayNameEl.textContent = displayName;
-                if (workspaceInput && document.activeElement !== workspaceInput) workspaceInput.value = workspaceName;
-                if (modalWorkspaceInput && document.activeElement !== modalWorkspaceInput) modalWorkspaceInput.value = displayName;
             }
 
             function loadState() {
@@ -1197,6 +1176,7 @@
                     priority: VALID_PRIORITIES.includes(task.priority) ? task.priority : 'Low',
                     category: VALID_CATEGORIES.includes(task.category) ? task.category : 'General',
                     dueDate: typeof task.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(task.dueDate) ? task.dueDate : '',
+                    dueTime: typeof task.dueTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(task.dueTime) ? task.dueTime : '',
                     done: !!task.done,
                     createdAt: typeof task.createdAt === 'string' && !Number.isNaN(new Date(task.createdAt)) ? task.createdAt : new Date().toISOString(),
                 };
@@ -1217,16 +1197,31 @@
 
             function formatDate(value) {
                 if (!value) return '';
-                const date = new Date(value);
-                if (Number.isNaN(date.getTime())) return '';
+                const date = parseDate(value);
+                if (!date) return '';
                 return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            }
+
+            function formatTime(value) {
+                if (!value) return '';
+                const match = value.match(/^([01]\\d|2[0-3]):([0-5]\\d)$/);
+                if (!match) return '';
+                const date = new Date(2000, 0, 1, Number(match[1]), Number(match[2]));
+                return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+            }
+
+            function formatDue(task) {
+                if (!task.dueDate) return 'Due: No date';
+                const dateText = formatDate(task.dueDate);
+                const timeText = formatTime(task.dueTime);
+                return timeText ? `Due: ${dateText} at ${timeText}` : `Due: ${dateText}`;
             }
 
             function getVisibleTasks() {
                 return tasks.filter((task) => {
                     if (state.view === 'today' && !isToday(task.dueDate)) return false;
-                    if (state.view === 'upcoming' && !isUpcoming(task.dueDate)) return false;
-                    if (state.view === 'overdue' && !isOverdue(task.dueDate, task.done)) return false;
+                    if (state.view === 'upcoming' && !isUpcoming(task.dueDate, task.dueTime)) return false;
+                    if (state.view === 'overdue' && !isOverdue(task.dueDate, task.done, task.dueTime)) return false;
                     if (state.category && task.category !== state.category) return false;
                     if (state.done === 'active' && task.done) return false;
                     if (state.done === 'done' && !task.done) return false;
@@ -1241,7 +1236,9 @@
                         if (!a.dueDate && !b.dueDate) return 0;
                         if (!a.dueDate) return 1;
                         if (!b.dueDate) return -1;
-                        return a.dueDate.localeCompare(b.dueDate);
+                        const aDue = `${a.dueDate || '9999-12-31'}T${a.dueTime || '23:59'}`;
+                        const bDue = `${b.dueDate || '9999-12-31'}T${b.dueTime || '23:59'}`;
+                        return aDue.localeCompare(bDue);
                     });
                 } else if (state.sort === 'priority') {
                     copy.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 4) - (PRIORITY_ORDER[b.priority] ?? 4));
@@ -1252,7 +1249,7 @@
             function updateStats() {
                 const total = tasks.length;
                 const doneCount = tasks.filter((task) => task.done).length;
-                const overdueCount = tasks.filter((task) => isOverdue(task.dueDate, task.done)).length;
+                const overdueCount = tasks.filter((task) => isOverdue(task.dueDate, task.done, task.dueTime)).length;
                 statTotal.textContent = total;
                 statActive.textContent = total - doneCount;
                 statDone.textContent = doneCount;
@@ -1280,7 +1277,7 @@
                     : 'No tasks yet — add one above to get started.';
 
                 if (state.view === 'all') {
-                    renderSection('Needs To Do', visible.filter((task) => !task.done && !isOverdue(task.dueDate, task.done)));
+                    renderSection('Needs To Do', visible.filter((task) => !task.done && !isOverdue(task.dueDate, task.done, task.dueTime)));
                     renderSection('Past Due', visible.filter((task) => isOverdue(task.dueDate, task.done)));
                     renderSection('Completed', visible.filter((task) => task.done));
                 } else {
@@ -1357,7 +1354,7 @@
 
                     const dueDate = document.createElement('span');
                     dueDate.className = 'due-date';
-                    dueDate.textContent = task.dueDate ? `Due: ${formatDate(task.dueDate)}` : 'Due: No date';
+                    dueDate.textContent = formatDue(task);
                     if (isOverdue(task.dueDate, task.done)) {
                         dueDate.classList.add('due-overdue');
                     }
@@ -1418,6 +1415,12 @@
                 dueInput.type = 'date';
                 dueInput.value = task.dueDate || '';
 
+                const dueTimeInput = document.createElement('input');
+                dueTimeInput.type = 'time';
+                dueTimeInput.step = '60';
+                dueTimeInput.value = task.dueTime || '';
+                dueTimeInput.setAttribute('aria-label', 'Edit due time');
+
                 const saveBtn = document.createElement('button');
                 saveBtn.type = 'button';
                 saveBtn.textContent = 'Save';
@@ -1426,6 +1429,7 @@
                     priority: prioritySel.value,
                     category: categorySel.value,
                     dueDate: dueInput.value,
+                    dueTime: dueTimeInput.value,
                 }));
 
                 const cancelBtn = document.createElement('button');
@@ -1433,7 +1437,7 @@
                 cancelBtn.textContent = 'Cancel';
                 cancelBtn.addEventListener('click', () => cancelEdit(task.id));
 
-                row.append(textInput, prioritySel, categorySel, dueInput, saveBtn, cancelBtn);
+                row.append(textInput, prioritySel, categorySel, dueInput, dueTimeInput, saveBtn, cancelBtn);
                 return row;
             }
 
@@ -1453,6 +1457,7 @@
                     priority: prioritySelect.value,
                     category: categorySelect.value,
                     dueDate: dueDateInput.value || '',
+                    dueTime: dueTimeInput.value || '',
                     done: false,
                     createdAt: new Date().toISOString(),
                 });
@@ -1506,6 +1511,7 @@
                 if (VALID_PRIORITIES.includes(updates.priority)) task.priority = updates.priority;
                 if (VALID_CATEGORIES.includes(updates.category)) task.category = updates.category;
                 task.dueDate = updates.dueDate || '';
+                task.dueTime = updates.dueTime || '';
                 delete task.editing;
                 persistTasks();
                 render();
@@ -1612,10 +1618,6 @@
                 const user = firebaseAuth?.currentUser;
                 document.getElementById('profileName').value = profile.name || user?.displayName || '';
                 document.getElementById('profileEmail').value = profile.email || user?.email || '';
-                const modalWorkspaceInput = document.getElementById('modalWorkspaceDisplay');
-                if (modalWorkspaceInput) {
-                    modalWorkspaceInput.value = loadWorkspaceDisplayName() || profile.name || user?.displayName || user?.email || '';
-                }
                 renderAuthUI(user);
             }
 
@@ -1629,34 +1631,6 @@
             accountBtn && accountBtn.addEventListener('click', () => openAccountModal());
             const editDisplayBtn = document.getElementById('editDisplayBtn');
             editDisplayBtn && editDisplayBtn.addEventListener('click', () => openAccountModal());
-
-            const workspaceDisplayInput = document.getElementById('workspaceDisplayInput');
-            const saveWorkspaceDisplayBtn = document.getElementById('saveWorkspaceDisplayBtn');
-            const saveModalWorkspaceDisplayBtn = document.getElementById('saveModalWorkspaceDisplayBtn');
-
-            function saveWorkspaceFromInput(input) {
-                if (!input) return;
-                const value = input.value.trim();
-                saveWorkspaceDisplayName(value);
-                if (workspaceDisplayInput) workspaceDisplayInput.value = value;
-                const modalInput = document.getElementById('modalWorkspaceDisplay');
-                if (modalInput) modalInput.value = value || 'Guest';
-            }
-
-            saveWorkspaceDisplayBtn && saveWorkspaceDisplayBtn.addEventListener('click', () => {
-                saveWorkspaceFromInput(workspaceDisplayInput);
-            });
-
-            workspaceDisplayInput && workspaceDisplayInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    saveWorkspaceFromInput(workspaceDisplayInput);
-                }
-            });
-
-            saveModalWorkspaceDisplayBtn && saveModalWorkspaceDisplayBtn.addEventListener('click', () => {
-                saveWorkspaceFromInput(document.getElementById('modalWorkspaceDisplay'));
-            });
 
             document.addEventListener('click', (e) => {
                 if (e.target && (e.target.id === 'modalBackdrop' || e.target.id === 'modalCloseBtn' || e.target.id === 'profileCancelBtn')) {
@@ -1900,16 +1874,6 @@
                     <button type="submit" class="primary">Save Profile</button>
                 </div>
             </form>
-            <section class="modal-section">
-                <div class="modal-section-title">Workspace display</div>
-                <div class="modal-field">
-                    <label for="modalWorkspaceDisplay">Display name</label>
-                    <input id="modalWorkspaceDisplay" maxlength="60" placeholder="How your workspace should appear" />
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="primary" id="saveModalWorkspaceDisplayBtn">Save Display Name</button>
-                </div>
-            </section>
             <section class="modal-section">
                 <div class="modal-section-title">Firebase Auth</div>
                 <div class="modal-field">
