@@ -192,6 +192,33 @@
             font-weight: 600;
         }
 
+        .workspace-display-edit {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+        }
+
+        .workspace-display-edit input {
+            min-width: 0;
+            width: 100%;
+            padding: 9px 10px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            color: var(--text);
+        }
+
+        .workspace-secondary-btn {
+            background: transparent !important;
+            color: var(--muted) !important;
+            border-color: var(--border) !important;
+        }
+
+        .workspace-display-edit button {
+            width: auto;
+            white-space: nowrap;
+        }
+
         .notes-panel {
             background: var(--panel);
             border-radius: 24px;
@@ -211,17 +238,20 @@
             background: var(--panel-2);
             color: var(--text);
             line-height: 1.6;
-            --bg: #101523;
-            --panel: #17203c;
-            --panel-2: #1f2a52;
-            --text: #e6ecff;
-            --muted: #a0b0d4;
-            --border: rgba(255, 255, 255, 0.08);
-            --shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
         }
 
         body.dark-mode {
-            background: #0d1428;
+            --bg: #0d1428;
+            --panel: #151d35;
+            --panel-2: #1d2947;
+            --text: #edf2ff;
+            --muted: #a9b7d6;
+            --primary: #7f9bff;
+            --primary-2: #93a9ff;
+            --border: rgba(255, 255, 255, 0.10);
+            --shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+            background: var(--bg);
+            color: var(--text);
         }
 
         body.dark-mode .task-panel,
@@ -229,32 +259,85 @@
         body.dark-mode .hero,
         body.dark-mode .sidebar,
         body.dark-mode .notes-panel,
-        body.dark-mode .menu-card {
-            background: #17203c;
+        body.dark-mode .menu-card,
+        body.dark-mode .workspace-display-card,
+        body.dark-mode .account-badge {
+            background: var(--panel);
+            color: var(--text);
+            border-color: var(--border);
+        }
+
+        body.dark-mode .stat-card,
+        body.dark-mode .task-section {
+            background: var(--panel-2);
+            border-color: var(--border);
         }
 
         body.dark-mode input,
         body.dark-mode select,
         body.dark-mode textarea,
-        body.dark-mode button {
-            background: #1f2a52;
-            border-color: rgba(255, 255, 255, 0.08);
+        body.dark-mode .menu-card button,
+        body.dark-mode .workspace-display-card button,
+        body.dark-mode .actions button,
+        body.dark-mode .empty-state {
+            background: var(--panel-2);
+            border-color: var(--border);
             color: var(--text);
         }
 
-        body.dark-mode .actions button {
-            background: #25355f;
-            color: #e6ecff;
+        body.dark-mode input::placeholder,
+        body.dark-mode textarea::placeholder {
+            color: #8493b6;
+        }
+
+        body.dark-mode li {
+            background: #18233f;
+            border-color: var(--border);
+            color: var(--text);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+        }
+
+        body.dark-mode .done .task-title {
+            color: #93a0bb;
         }
 
         body.dark-mode .actions .remove-btn {
             background: #c44a4a;
+            color: #fff;
         }
 
         body.dark-mode .nav-btn.active,
-        body.dark-mode .category-btn.active,
-        body.dark-mode .topbar button.active {
-            background: linear-gradient(135deg, #7f9bff, #8ba7ff);
+        body.dark-mode .category-btn.active {
+            background: linear-gradient(135deg, var(--primary), var(--primary-2));
+            color: #10172b;
+        }
+
+        body.dark-mode .brand {
+            color: #dce4ff;
+        }
+
+        body.dark-mode .modal {
+            background: var(--panel);
+            color: var(--text);
+            border-color: var(--border);
+        }
+
+        body.dark-mode .modal-section {
+            background: rgba(255, 255, 255, 0.035);
+            border-color: var(--border);
+        }
+
+        body.dark-mode .modal-field input {
+            background: #111a31;
+            color: var(--text);
+            border-color: var(--border);
+        }
+
+        body.dark-mode .modal-actions button.secondary,
+        body.dark-mode .modal-auth-actions button.secondary {
+            background: var(--panel-2);
+            color: var(--text);
+            border: 1px solid var(--border);
         }
 
         .main-panel {
@@ -628,6 +711,25 @@
             gap: 10px;
         }
 
+        .modal-auth-actions .auth-signup,
+        .modal-auth-actions .auth-signin,
+        .modal-auth-actions .auth-signout {
+            width: 100%;
+        }
+
+        .firebase-signed-in .firebase-credentials {
+            display: none;
+        }
+
+        .firebase-signed-in .auth-signup,
+        .firebase-signed-in .auth-signin {
+            display: none !important;
+        }
+
+        .firebase-signed-out .auth-signout {
+            display: none !important;
+        }
+
         .modal .auth-status {
             color: var(--text);
             font-weight: 700;
@@ -762,7 +864,12 @@
             <div class="workspace-display-card">
                 <div class="display-label">Workspace display</div>
                 <div class="display-name" id="workspaceDisplayName">Guest</div>
-                <button type="button" id="editDisplayBtn">Edit display</button>
+                <div class="workspace-display-edit">
+                    <input id="workspaceDisplayInput" type="text" maxlength="60"
+                        placeholder="Workspace display name" aria-label="Workspace display name" />
+                    <button type="button" id="saveWorkspaceDisplayBtn">Save</button>
+                </div>
+                <button type="button" id="editDisplayBtn" class="workspace-secondary-btn">Account settings</button>
             </div>
 
             <div class="sidebar-section">
@@ -908,6 +1015,7 @@
             const workspaceNotes = document.getElementById('workspaceNotes');
             const accountBtn = document.getElementById('accountBtn');
             const PROFILE_KEY = 'myk-profile-v1';
+            const WORKSPACE_DISPLAY_KEY = 'myk-workspace-display-v1';
 
             const VALID_PRIORITIES = ['Low', 'Medium', 'High', 'Immediate Action'];
             const VALID_CATEGORIES = ['General', 'Study', 'Projects', 'Work', 'Personal'];
@@ -992,34 +1100,72 @@
                 try {
                     const raw = localStorage.getItem(PROFILE_KEY);
                     if (!raw) return null;
-                    return JSON.parse(raw);
-                } catch (e) { return null; }
+                    const parsed = JSON.parse(raw);
+                    return parsed && typeof parsed === 'object' ? parsed : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function loadWorkspaceDisplayName() {
+                try {
+                    return (localStorage.getItem(WORKSPACE_DISPLAY_KEY) || '').trim();
+                } catch (e) {
+                    return '';
+                }
+            }
+
+            function saveWorkspaceDisplayName(name) {
+                const value = (name || '').trim().slice(0, 60);
+                try {
+                    if (value) {
+                        localStorage.setItem(WORKSPACE_DISPLAY_KEY, value);
+                    } else {
+                        localStorage.removeItem(WORKSPACE_DISPLAY_KEY);
+                    }
+                } catch (e) {
+                    console.error('Failed to save workspace display name', e);
+                }
+                renderProfile();
             }
 
             function saveLocalProfile(profile) {
                 try {
-                    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+                    const clean = {
+                        name: String(profile?.name || '').trim().slice(0, 80),
+                        email: String(profile?.email || '').trim().slice(0, 160)
+                    };
+                    localStorage.setItem(PROFILE_KEY, JSON.stringify(clean));
                     renderProfile();
-                } catch (e) { console.error('Failed to save profile', e); }
+                } catch (e) {
+                    console.error('Failed to save profile', e);
+                }
             }
 
             function renderProfile() {
-                const localProfile = loadProfile();
+                const localProfile = loadProfile() || {};
                 const user = firebaseAuth?.currentUser;
+                const workspaceName = loadWorkspaceDisplayName();
                 const profile = {
-                    name: localProfile?.name || user?.displayName || user?.email || 'Guest',
-                    email: localProfile?.email || user?.email || '',
+                    name: localProfile.name || user?.displayName || user?.email || 'Guest',
+                    email: localProfile.email || user?.email || '',
                 };
 
                 const badgeName = document.querySelector('.account-badge div div');
                 const badgeSub = document.querySelector('.account-badge div div + div');
                 const avatar = document.querySelector('.avatar');
                 const displayNameEl = document.getElementById('workspaceDisplayName');
+                const workspaceInput = document.getElementById('workspaceDisplayInput');
+                const modalWorkspaceInput = document.getElementById('modalWorkspaceDisplay');
+
+                const displayName = workspaceName || profile.name || 'Guest';
 
                 if (badgeName) badgeName.textContent = profile.name || 'Guest';
                 if (badgeSub) badgeSub.textContent = profile.email ? profile.email : (user ? 'Signed in via Firebase' : 'Local workspace');
                 if (avatar) avatar.textContent = (profile.name || 'G').slice(0, 2).toUpperCase();
-                if (displayNameEl) displayNameEl.textContent = profile.name || 'Guest';
+                if (displayNameEl) displayNameEl.textContent = displayName;
+                if (workspaceInput && document.activeElement !== workspaceInput) workspaceInput.value = workspaceName;
+                if (modalWorkspaceInput && document.activeElement !== modalWorkspaceInput) modalWorkspaceInput.value = displayName;
             }
 
             function loadState() {
@@ -1461,20 +1607,56 @@
                 const backdrop = document.getElementById('modalBackdrop');
                 if (!backdrop) return;
                 backdrop.style.display = 'flex';
+                backdrop.setAttribute('aria-hidden', 'false');
                 const profile = loadProfile() || {};
-                document.getElementById('profileName').value = profile.name || '';
-                document.getElementById('profileEmail').value = profile.email || '';
+                const user = firebaseAuth?.currentUser;
+                document.getElementById('profileName').value = profile.name || user?.displayName || '';
+                document.getElementById('profileEmail').value = profile.email || user?.email || '';
+                const modalWorkspaceInput = document.getElementById('modalWorkspaceDisplay');
+                if (modalWorkspaceInput) {
+                    modalWorkspaceInput.value = loadWorkspaceDisplayName() || profile.name || user?.displayName || user?.email || '';
+                }
+                renderAuthUI(user);
             }
 
             function closeAccountModal() {
                 const backdrop = document.getElementById('modalBackdrop');
                 if (!backdrop) return;
                 backdrop.style.display = 'none';
+                backdrop.setAttribute('aria-hidden', 'true');
             }
 
             accountBtn && accountBtn.addEventListener('click', () => openAccountModal());
             const editDisplayBtn = document.getElementById('editDisplayBtn');
             editDisplayBtn && editDisplayBtn.addEventListener('click', () => openAccountModal());
+
+            const workspaceDisplayInput = document.getElementById('workspaceDisplayInput');
+            const saveWorkspaceDisplayBtn = document.getElementById('saveWorkspaceDisplayBtn');
+            const saveModalWorkspaceDisplayBtn = document.getElementById('saveModalWorkspaceDisplayBtn');
+
+            function saveWorkspaceFromInput(input) {
+                if (!input) return;
+                const value = input.value.trim();
+                saveWorkspaceDisplayName(value);
+                if (workspaceDisplayInput) workspaceDisplayInput.value = value;
+                const modalInput = document.getElementById('modalWorkspaceDisplay');
+                if (modalInput) modalInput.value = value || 'Guest';
+            }
+
+            saveWorkspaceDisplayBtn && saveWorkspaceDisplayBtn.addEventListener('click', () => {
+                saveWorkspaceFromInput(workspaceDisplayInput);
+            });
+
+            workspaceDisplayInput && workspaceDisplayInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveWorkspaceFromInput(workspaceDisplayInput);
+                }
+            });
+
+            saveModalWorkspaceDisplayBtn && saveModalWorkspaceDisplayBtn.addEventListener('click', () => {
+                saveWorkspaceFromInput(document.getElementById('modalWorkspaceDisplay'));
+            });
 
             document.addEventListener('click', (e) => {
                 if (e.target && (e.target.id === 'modalBackdrop' || e.target.id === 'modalCloseBtn' || e.target.id === 'profileCancelBtn')) {
@@ -1531,7 +1713,8 @@
                 document.head.appendChild(script);
             }
 
-            function handleAuthStateChanged(user) {
+            function renderAuthUI(user) {
+                const backdrop = document.getElementById('modalBackdrop');
                 const status = document.getElementById('authStatus');
                 const message = document.getElementById('firebaseMessage');
                 const signOutBtn = document.getElementById('firebaseSignOutBtn');
@@ -1539,25 +1722,44 @@
                 const signInBtn = document.getElementById('firebaseSignInBtn');
                 if (!status || !message || !signOutBtn || !signUpBtn || !signInBtn) return;
 
-                firebaseReady = true;
-                signUpBtn.disabled = false;
-                signInBtn.disabled = false;
-
-                if (user) {
-                    status.textContent = `Signed in as ${user.email || user.displayName || 'user'}`;
-                    signUpBtn.style.display = 'none';
-                    signInBtn.style.display = 'none';
-                    signOutBtn.style.display = 'block';
-                    message.textContent = 'Signed in via Firebase. Update your workspace display below.';
-                } else {
-                    status.textContent = 'Signed out';
-                    signUpBtn.style.display = 'block';
-                    signInBtn.style.display = 'block';
-                    signOutBtn.style.display = 'none';
-                    message.textContent = 'Use sign up or sign in to authenticate with Firebase.';
+                const signedIn = !!user;
+                const modal = backdrop?.querySelector('.modal');
+                if (modal) {
+                    modal.classList.toggle('firebase-signed-in', signedIn);
+                    modal.classList.toggle('firebase-signed-out', !signedIn);
                 }
 
+                signUpBtn.disabled = !firebaseReady;
+                signInBtn.disabled = !firebaseReady;
+
+                signUpBtn.style.display = signedIn ? 'none' : 'block';
+                signInBtn.style.display = signedIn ? 'none' : 'block';
+                signOutBtn.style.display = signedIn ? 'block' : 'none';
+
+                status.textContent = signedIn
+                    ? `Signed in as ${user.email || user.displayName || 'user'}`
+                    : 'Signed out';
+
+                message.textContent = signedIn
+                    ? 'Signed in via Firebase. Your workspace display name can be changed above.'
+                    : 'Use sign up or sign in to authenticate with Firebase.';
+
                 renderProfile();
+            }
+
+            function handleAuthStateChanged(user) {
+                firebaseReady = true;
+                renderAuthUI(user);
+
+                // Authentication changes are complete here; don't leave stale
+                // sign-up/sign-in controls or the auth modal on screen.
+                if (user) {
+                    const backdrop = document.getElementById('modalBackdrop');
+                    if (backdrop) {
+                        backdrop.style.display = 'none';
+                        backdrop.setAttribute('aria-hidden', 'true');
+                    }
+                }
             }
 
             function logFirebaseMessage(text) {
@@ -1619,7 +1821,7 @@
 
                         try {
                             await firebaseSignUp(email, password);
-                            logFirebaseMessage('Sign up successful.');
+                            logFirebaseMessage('Account created. Signing you in…');
                         } catch (err) {
                             console.error(err);
                             logFirebaseMessage('Sign up failed: ' + err.message);
@@ -1634,7 +1836,7 @@
 
                         try {
                             await firebaseSignIn(email, password);
-                            logFirebaseMessage('Sign in successful.');
+                            logFirebaseMessage('Signing you in…');
                         } catch (err) {
                             console.error(err);
                             logFirebaseMessage('Sign in failed: ' + err.message);
@@ -1647,6 +1849,7 @@
                         try {
                             await firebaseSignOut();
                             logFirebaseMessage('Signed out.');
+                            openAccountModal();
                         } catch (err) {
                             console.error(err);
                             logFirebaseMessage('Sign out failed: ' + err.message);
@@ -1665,6 +1868,7 @@
             applyDarkMode();
             render();
             renderProfile();
+            renderAuthUI(null);
             bindFirebaseAuthButtons();
             initFirebase(firebaseConfig);
         });
@@ -1681,7 +1885,7 @@
             </div>
             <p class="modal-note">Save your local profile details or sign in with Firebase to authenticate your
                 workspace.</p>
-            <section class="modal-section">
+            <form id="localProfileForm" class="modal-section">
                 <div class="modal-section-title">Profile</div>
                 <div class="modal-field">
                     <label for="profileName">Name</label>
@@ -1693,23 +1897,33 @@
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="secondary" id="profileCancelBtn">Cancel</button>
-                    <button type="submit" form="localProfileForm" class="primary">Save Profile</button>
+                    <button type="submit" class="primary">Save Profile</button>
+                </div>
+            </form>
+            <section class="modal-section">
+                <div class="modal-section-title">Workspace display</div>
+                <div class="modal-field">
+                    <label for="modalWorkspaceDisplay">Display name</label>
+                    <input id="modalWorkspaceDisplay" maxlength="60" placeholder="How your workspace should appear" />
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="primary" id="saveModalWorkspaceDisplayBtn">Save Display Name</button>
                 </div>
             </section>
             <section class="modal-section">
                 <div class="modal-section-title">Firebase Auth</div>
                 <div class="modal-field">
                     <label for="firebaseEmail">Firebase Email</label>
-                    <input id="firebaseEmail" type="email" placeholder="Email" />
+                    <input class="firebase-credentials" id="firebaseEmail" type="email" placeholder="Email" />
                 </div>
                 <div class="modal-field">
                     <label for="firebasePassword">Password</label>
-                    <input id="firebasePassword" type="password" placeholder="Password" />
+                    <input class="firebase-credentials" id="firebasePassword" type="password" placeholder="Password" />
                 </div>
                 <div class="modal-auth-actions">
-                    <button type="button" class="secondary" id="firebaseSignUpBtn" disabled>Sign Up</button>
-                    <button type="button" class="primary" id="firebaseSignInBtn" disabled>Sign In</button>
-                    <button type="button" class="secondary" id="firebaseSignOutBtn" style="display:none;">Sign
+                    <button type="button" class="secondary" class="auth-signup" id="firebaseSignUpBtn" disabled>Sign Up</button>
+                    <button type="button" class="primary" class="auth-signin" id="firebaseSignInBtn" disabled>Sign In</button>
+                    <button type="button" class="secondary" class="auth-signout" id="firebaseSignOutBtn" style="display:none;">Sign
                         Out</button>
                 </div>
                 <div class="modal-message firebase-message" id="firebaseMessage">Firebase auth is loading...</div>
