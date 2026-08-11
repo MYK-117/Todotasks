@@ -158,6 +158,40 @@
             padding-bottom: 6px;
         }
 
+        .workspace-display-card {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 16px;
+            border-radius: 18px;
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+        }
+
+        .workspace-display-card .display-label {
+            color: var(--muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .workspace-display-card .display-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .workspace-display-card button {
+            width: fit-content;
+            padding: 8px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: #ffffff;
+            color: var(--text);
+            cursor: pointer;
+            font-weight: 600;
+        }
+
         .notes-panel {
             background: var(--panel);
             border-radius: 24px;
@@ -167,18 +201,16 @@
 
         .notes-panel textarea {
             width: 100%;
-            min-height: 130px;
+            min-height: 180px;
             resize: vertical;
             border-radius: 16px;
             border: 1px solid var(--border);
-            padding: 12px;
+            padding: 14px;
             font-size: 15px;
             font-family: inherit;
             background: var(--panel-2);
             color: var(--text);
-        }
-
-        .dark-mode {
+            line-height: 1.6;
             --bg: #101523;
             --panel: #17203c;
             --panel-2: #1f2a52;
@@ -727,6 +759,12 @@
                 </div>
             </div>
 
+            <div class="workspace-display-card">
+                <div class="display-label">Workspace display</div>
+                <div class="display-name" id="workspaceDisplayName">Guest</div>
+                <button type="button" id="editDisplayBtn">Edit display</button>
+            </div>
+
             <div class="sidebar-section">
                 <h3>Views</h3>
                 <button class="nav-btn active" data-view="all">All Tasks</button>
@@ -966,14 +1004,22 @@
             }
 
             function renderProfile() {
-                const p = loadProfile();
+                const localProfile = loadProfile();
+                const user = firebaseAuth?.currentUser;
+                const profile = {
+                    name: localProfile?.name || user?.displayName || user?.email || 'Guest',
+                    email: localProfile?.email || user?.email || '',
+                };
+
                 const badgeName = document.querySelector('.account-badge div div');
                 const badgeSub = document.querySelector('.account-badge div div + div');
                 const avatar = document.querySelector('.avatar');
-                if (!p) return;
-                if (badgeName) badgeName.textContent = p.name || 'You';
-                if (badgeSub) badgeSub.textContent = p.email ? p.email : 'Local profile';
-                if (avatar) avatar.textContent = (p.name || 'U').slice(0, 2).toUpperCase();
+                const displayNameEl = document.getElementById('workspaceDisplayName');
+
+                if (badgeName) badgeName.textContent = profile.name || 'Guest';
+                if (badgeSub) badgeSub.textContent = profile.email ? profile.email : (user ? 'Signed in via Firebase' : 'Local workspace');
+                if (avatar) avatar.textContent = (profile.name || 'G').slice(0, 2).toUpperCase();
+                if (displayNameEl) displayNameEl.textContent = profile.name || 'Guest';
             }
 
             function loadState() {
@@ -1427,6 +1473,8 @@
             }
 
             accountBtn && accountBtn.addEventListener('click', () => openAccountModal());
+            const editDisplayBtn = document.getElementById('editDisplayBtn');
+            editDisplayBtn && editDisplayBtn.addEventListener('click', () => openAccountModal());
 
             document.addEventListener('click', (e) => {
                 if (e.target && (e.target.id === 'modalBackdrop' || e.target.id === 'modalCloseBtn' || e.target.id === 'profileCancelBtn')) {
@@ -1497,13 +1545,19 @@
 
                 if (user) {
                     status.textContent = `Signed in as ${user.email || user.displayName || 'user'}`;
+                    signUpBtn.style.display = 'none';
+                    signInBtn.style.display = 'none';
                     signOutBtn.style.display = 'block';
-                    message.textContent = 'You are signed in. Your task workspace is still stored locally unless you add persistence.';
+                    message.textContent = 'Signed in via Firebase. Update your workspace display below.';
                 } else {
                     status.textContent = 'Signed out';
+                    signUpBtn.style.display = 'block';
+                    signInBtn.style.display = 'block';
                     signOutBtn.style.display = 'none';
                     message.textContent = 'Use sign up or sign in to authenticate with Firebase.';
                 }
+
+                renderProfile();
             }
 
             function logFirebaseMessage(text) {
@@ -1610,6 +1664,7 @@
             setActiveCategoryButton(state.category);
             applyDarkMode();
             render();
+            renderProfile();
             bindFirebaseAuthButtons();
             initFirebase(firebaseConfig);
         });
