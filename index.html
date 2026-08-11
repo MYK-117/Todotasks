@@ -486,29 +486,148 @@
             align-items: center;
             justify-content: center;
             z-index: 1200;
+            padding: 16px;
         }
 
         .modal {
             background: var(--panel);
-            border-radius: 14px;
-            padding: 18px;
-            width: 420px;
-            max-width: 95%;
-            box-shadow: 0 30px 80px rgba(17, 29, 74, 0.6);
+            border-radius: 18px;
+            padding: 22px;
+            width: 460px;
+            max-width: 100%;
+            box-shadow: 0 32px 90px rgba(17, 29, 74, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        .modal h3 {
-            margin: 0 0 8px;
-        }
-
-        .modal .row {
+        .modal-header {
             display: flex;
-            gap: 8px;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.15rem;
+        }
+
+        .modal-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 6px;
+        }
+
+        .modal-note,
+        .modal-message {
+            color: var(--muted);
+            margin: 0 0 14px;
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+
+        .modal-section {
+            display: grid;
+            gap: 14px;
+            padding: 16px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            margin-bottom: 16px;
+        }
+
+        .modal-section:last-of-type {
+            margin-bottom: 0;
+        }
+
+        .modal-section-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .modal-field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .modal-field input {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: var(--bg);
+            color: inherit;
+        }
+
+        .modal-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-end;
             margin-top: 8px;
         }
 
-        .modal input {
-            flex: 1;
+        .modal-actions button {
+            min-width: 110px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .modal-actions button.primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .modal-actions button.secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text);
+        }
+
+        .modal-auth-actions {
+            display: grid;
+            gap: 10px;
+        }
+
+        .modal .auth-status {
+            color: var(--text);
+            font-weight: 700;
+            margin-top: 4px;
+            font-size: 0.95rem;
+        }
+
+        .modal .auth-footer {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .modal .firebase-message {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 0.92rem;
+            min-height: 1.2em;
+        }
+
+        @media (max-width: 520px) {
+            .modal {
+                padding: 16px;
+            }
+
+            .modal-actions {
+                justify-content: stretch;
+            }
+
+            .modal-actions button {
+                width: 100%;
+            }
         }
 
         .edit-row {
@@ -601,9 +720,9 @@
             </div>
 
             <div class="account-badge">
-                <div class="avatar">MY</div>
+                <div class="avatar">G</div>
                 <div>
-                    <div style="font-weight:700;">Mikko</div>
+                    <div style="font-weight:700;">Guest</div>
                     <div style="font-size:13px; color: var(--muted);">Local workspace</div>
                 </div>
             </div>
@@ -724,7 +843,7 @@
     </div>
 
     <script>
-        (function () {
+        document.addEventListener('DOMContentLoaded', function () {
             const STORAGE_KEY = 'myk-task-list-v3';
             const FILTER_KEY = 'myk-task-dashboard-v1';
             const NOTES_KEY = 'myk-workspace-notes-v1';
@@ -1310,7 +1429,9 @@
             accountBtn && accountBtn.addEventListener('click', () => openAccountModal());
 
             document.addEventListener('click', (e) => {
-                if (e.target && e.target.id === 'modalBackdrop') closeAccountModal();
+                if (e.target && (e.target.id === 'modalBackdrop' || e.target.id === 'modalCloseBtn' || e.target.id === 'profileCancelBtn')) {
+                    closeAccountModal();
+                }
             });
 
             document.addEventListener('submit', (e) => {
@@ -1336,9 +1457,12 @@
             let firebaseApp = null;
             let firebaseAuth = null;
             let authUnsubscribe = null;
+            let firebaseReady = false;
 
             function initFirebase(cfg) {
                 if (!cfg) return console.warn('Please provide firebaseConfig');
+                firebaseReady = false;
+                logFirebaseMessage('Initializing Firebase auth...');
                 const script = document.createElement('script');
                 script.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
                 script.onload = () => {
@@ -1349,7 +1473,6 @@
                             firebaseApp = window.firebase.initializeApp(cfg);
                             firebaseAuth = window.firebase.auth();
                             authUnsubscribe = firebaseAuth.onAuthStateChanged(handleAuthStateChanged);
-                            logFirebaseMessage('Firebase initialized.');
                         } catch (err) {
                             console.error('Firebase init failed', err);
                             logFirebaseMessage('Firebase init failed: ' + err.message);
@@ -1364,7 +1487,13 @@
                 const status = document.getElementById('authStatus');
                 const message = document.getElementById('firebaseMessage');
                 const signOutBtn = document.getElementById('firebaseSignOutBtn');
-                if (!status || !message || !signOutBtn) return;
+                const signUpBtn = document.getElementById('firebaseSignUpBtn');
+                const signInBtn = document.getElementById('firebaseSignInBtn');
+                if (!status || !message || !signOutBtn || !signUpBtn || !signInBtn) return;
+
+                firebaseReady = true;
+                signUpBtn.disabled = false;
+                signInBtn.disabled = false;
 
                 if (user) {
                     status.textContent = `Signed in as ${user.email || user.displayName || 'user'}`;
@@ -1402,10 +1531,38 @@
                 const signInBtn = document.getElementById('firebaseSignInBtn');
                 const signOutBtn = document.getElementById('firebaseSignOutBtn');
 
+                function getAuthInputs() {
+                    return {
+                        email: document.getElementById('firebaseEmail').value.trim(),
+                        password: document.getElementById('firebasePassword').value,
+                    };
+                }
+
+                function validateAuth(email, password) {
+                    if (!firebaseReady) {
+                        logFirebaseMessage('Firebase is still loading. Please wait a moment.');
+                        return false;
+                    }
+                    if (!email) {
+                        logFirebaseMessage('Please enter your email.');
+                        return false;
+                    }
+                    if (!password) {
+                        logFirebaseMessage('Please enter your password.');
+                        return false;
+                    }
+                    if (password.length < 6) {
+                        logFirebaseMessage('Password must be at least 6 characters.');
+                        return false;
+                    }
+                    return true;
+                }
+
                 if (signUpBtn) {
                     signUpBtn.addEventListener('click', async () => {
-                        const email = document.getElementById('firebaseEmail').value.trim();
-                        const password = document.getElementById('firebasePassword').value;
+                        const { email, password } = getAuthInputs();
+                        if (!validateAuth(email, password)) return;
+
                         try {
                             await firebaseSignUp(email, password);
                             logFirebaseMessage('Sign up successful.');
@@ -1418,8 +1575,9 @@
 
                 if (signInBtn) {
                     signInBtn.addEventListener('click', async () => {
-                        const email = document.getElementById('firebaseEmail').value.trim();
-                        const password = document.getElementById('firebasePassword').value;
+                        const { email, password } = getAuthInputs();
+                        if (!validateAuth(email, password)) return;
+
                         try {
                             await firebaseSignIn(email, password);
                             logFirebaseMessage('Sign in successful.');
@@ -1454,41 +1612,53 @@
             render();
             bindFirebaseAuthButtons();
             initFirebase(firebaseConfig);
-        })();
+        });
     </script>
     <!-- Account / Auth Modal -->
     <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="acctTitle">
-            <h3 id="acctTitle">Account</h3>
-            <div class="auth-status" id="authStatus">Signed out</div>
-            <p style="color:var(--muted); margin:0 0 8px;">Local profile saves your display name. Firebase auth lets you
-                sign in with email/password.</p>
-            <form id="localProfileForm">
-                <div class="row">
+            <div class="modal-header">
+                <div>
+                    <h3 id="acctTitle">Account</h3>
+                    <div class="auth-status" id="authStatus">Signed out</div>
+                </div>
+                <button type="button" class="modal-close-btn" id="modalCloseBtn" aria-label="Close">×</button>
+            </div>
+            <p class="modal-note">Save your local profile details or sign in with Firebase to authenticate your
+                workspace.</p>
+            <section class="modal-section">
+                <div class="modal-section-title">Profile</div>
+                <div class="modal-field">
+                    <label for="profileName">Name</label>
                     <input id="profileName" placeholder="Your name" />
                 </div>
-                <div class="row">
+                <div class="modal-field">
+                    <label for="profileEmail">Email</label>
                     <input id="profileEmail" placeholder="Email (optional)" />
                 </div>
-                <div class="row" style="justify-content:flex-end; margin-top:12px; gap:8px;">
-                    <button type="button"
-                        onclick="document.getElementById('modalBackdrop').style.display='none'">Close</button>
-                    <button type="submit">Save Profile</button>
+                <div class="modal-actions">
+                    <button type="button" class="secondary" id="profileCancelBtn">Cancel</button>
+                    <button type="submit" form="localProfileForm" class="primary">Save Profile</button>
                 </div>
-            </form>
-            <hr style="margin:18px 0; border-color: var(--border);" />
-            <div style="display:grid; gap:12px;">
-                <div style="font-weight:700;">Firebase Auth</div>
-                <input id="firebaseEmail" type="email" placeholder="Email" />
-                <input id="firebasePassword" type="password" placeholder="Password" />
-                <div class="row" style="justify-content:flex-end; gap:8px; margin-top:8px;">
-                    <button type="button" id="firebaseSignUpBtn">Sign Up</button>
-                    <button type="button" id="firebaseSignInBtn">Sign In</button>
+            </section>
+            <section class="modal-section">
+                <div class="modal-section-title">Firebase Auth</div>
+                <div class="modal-field">
+                    <label for="firebaseEmail">Firebase Email</label>
+                    <input id="firebaseEmail" type="email" placeholder="Email" />
                 </div>
-                <button type="button" id="firebaseSignOutBtn" style="width:100%; display:none;">Sign Out</button>
-                <div id="firebaseMessage" style="color: var(--muted); font-size: 13px;">Firebase auth is ready when you
-                    configure the app.</div>
-            </div>
+                <div class="modal-field">
+                    <label for="firebasePassword">Password</label>
+                    <input id="firebasePassword" type="password" placeholder="Password" />
+                </div>
+                <div class="modal-auth-actions">
+                    <button type="button" class="secondary" id="firebaseSignUpBtn" disabled>Sign Up</button>
+                    <button type="button" class="primary" id="firebaseSignInBtn" disabled>Sign In</button>
+                    <button type="button" class="secondary" id="firebaseSignOutBtn" style="display:none;">Sign
+                        Out</button>
+                </div>
+                <div class="modal-message firebase-message" id="firebaseMessage">Firebase auth is loading...</div>
+            </section>
         </div>
     </div>
 </body>
