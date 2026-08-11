@@ -2,8 +2,8 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Work To-Do App</title>
     <style>
         body {
@@ -16,342 +16,700 @@
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 900px;
             margin: auto;
-            background: white;
-            padding: 36px;
-            border-radius: 20px;
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12);
+            background: #fff;
+            padding: 28px;
+            border-radius: 14px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, .08);
         }
 
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
 
         .logo {
-            font-size: 32px;
-            font-weight: bold;
+            font-size: 26px;
+            font-weight: 700;
             color: #4b3f72;
         }
 
         .form-grid {
             display: grid;
-            grid-template-columns: 2fr 1.2fr 1.2fr 1fr 0.9fr;
-            gap: 12px;
-            margin-bottom: 24px;
-            align-items: end;
-        }
-
-        .form-grid>div {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        label {
-            font-weight: 600;
-            font-size: 16px;
+            grid-template-columns: 2fr 1fr 1fr 1fr 0.9fr;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 18px;
         }
 
         input,
-        select {
-            padding: 14px 12px;
-            font-size: 18px;
+        select,
+        button {
+            padding: 10px;
+            border-radius: 10px;
             border: 1px solid #d7dce5;
-            border-radius: 12px;
-            min-height: 48px;
+            font-size: 16px;
+            font-family: inherit;
         }
 
         button {
-            padding: 14px 18px;
-            border: none;
-            border-radius: 12px;
             background: linear-gradient(135deg, #4f7cff, #6a8dff);
-            color: white;
+            color: #fff;
+            border: none;
             cursor: pointer;
-            font-weight: bold;
-            font-size: 18px;
-            min-height: 48px;
+            font-weight: 700;
+        }
+
+        button:hover {
+            filter: brightness(1.05);
         }
 
         ul {
             list-style: none;
             padding: 0;
+            margin: 0;
         }
 
         li {
             display: flex;
+            gap: 12px;
+            align-items: flex-start;
             justify-content: space-between;
-            align-items: center;
-            padding: 16px 0;
+            padding: 12px 0;
             border-bottom: 1px solid #eee;
-            font-size: 20px;
+        }
+
+        .task-toggle {
+            margin-top: 3px;
+            width: 20px;
+            height: 20px;
+            flex: 0 0 auto;
+            cursor: pointer;
+            accent-color: #4f7cff;
         }
 
         .task-info {
             display: flex;
             flex-direction: column;
-            gap: 6px;
-            cursor: pointer;
+            gap: 4px;
             flex: 1;
-            border-radius: 10px;
-            padding: 6px 8px;
+            min-width: 0;
         }
 
-        .task-info:focus-visible {
-            outline: 2px solid #4f7cff;
-            outline-offset: 3px;
+        .task-title {
+            word-break: break-word;
         }
 
-        .done {
+        .task-meta span {
+            margin-right: 8px;
+            font-size: 14px;
+        }
+
+        .done .task-title {
             text-decoration: line-through;
             color: gray;
-        }
-
-        .priority-high,
-        .priority-immediate-action {
-            color: #d14343;
-            font-weight: bold;
-        }
-
-        .priority-medium {
-            color: #d28a00;
-            font-weight: bold;
+            opacity: .8;
         }
 
         .priority-low {
             color: #2e8b57;
-            font-weight: bold;
+            font-weight: 700;
+        }
+
+        .priority-medium {
+            color: #d28a00;
+            font-weight: 700;
+        }
+
+        .priority-high {
+            color: #d14343;
+            font-weight: 700;
+        }
+
+        .priority-immediate {
+            color: #8b0000;
+            font-weight: 800;
+        }
+
+        .priority-unknown {
+            color: #777;
+            font-weight: 700;
+        }
+
+        .actions {
+            display: flex;
+            gap: 6px;
+            flex: 0 0 auto;
         }
 
         .actions button {
-            margin-left: 6px;
-            background: #e74c3c;
+            background: #eef1f6;
+            color: #334;
+            border: none;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
         }
 
-        @media (max-width: 900px) {
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
+        .actions .remove-btn {
+            background: #e74c3c;
+            color: #fff;
+        }
 
-            .container {
-                padding: 24px;
-            }
+        .due-overdue {
+            color: #d14343;
+            font-weight: 700;
+        }
+
+        .sr-only {
+            position: absolute;
+            left: -9999px;
+            top: auto;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .summary {
+            font-size: 15px;
+            color: #556;
+            margin-bottom: 10px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 32px 12px;
+            color: #778;
+            font-size: 16px;
+        }
+
+        /* Consistent visible focus ring for every interactive control */
+        a:focus-visible,
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        [tabindex]:focus-visible {
+            outline: 3px solid #6a8dff;
+            outline-offset: 2px;
+        }
+
+        .edit-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        .edit-row input,
+        .edit-row select {
+            flex: 1 1 120px;
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
+    <div class="container" role="application" aria-label="Task board">
         <div class="header">
-            <div class="logo">Your Workspace</div>
-            <div>Task Board</div>
+            <div class="logo">MYK Workspace</div>
+            <div>📝 Task Board</div>
         </div>
 
-        <form id="taskForm" class="form-grid">
-            <div>
-                <label for="taskInput">Task</label>
-                <input id="taskInput" name="taskInput" placeholder="Add a work task..." required />
-            </div>
-            <div>
-                <label for="prioritySelect">Priority</label>
-                <select id="prioritySelect" name="prioritySelect">
-                    <option value="low">Low Priority</option>
-                    <option value="medium">Medium Priority</option>
-                    <option value="high">High Priority</option>
-                    <option value="immediate-action">Immediate Action</option>
-                </select>
-            </div>
-            <div>
-                <label for="categorySelect">Category</label>
-                <select id="categorySelect" name="categorySelect">
-                    <option value="General">General</option>
-                    <option value="Study">Study</option>
-                    <option value="Projects">Projects</option>
-                    <option value="Work">Work</option>
-                    <option value="Personal">Personal</option>
-                </select>
-            </div>
-            <div>
-                <label for="dueDateInput">Due date</label>
-                <input id="dueDateInput" name="dueDateInput" type="date" />
-            </div>
-            <button type="submit">Add Task</button>
+        <form id="taskForm" class="form-grid" aria-label="Add a task">
+            <label class="sr-only" for="taskInput">Task description</label>
+            <input id="taskInput" type="text" placeholder="Add a work task..." aria-required="true" required />
+
+            <label class="sr-only" for="prioritySelect">Priority</label>
+            <select id="prioritySelect">
+                <option value="Low">Low Priority</option>
+                <option value="Medium">Medium Priority</option>
+                <option value="High">High Priority</option>
+                <option value="Immediate Action">Immediate Action</option>
+            </select>
+
+            <label class="sr-only" for="categorySelect">Category</label>
+            <select id="categorySelect">
+                <option value="General">General</option>
+                <option value="Study">Study</option>
+                <option value="Projects">Projects</option>
+                <option value="Work">Work</option>
+                <option value="Personal">Personal</option>
+            </select>
+
+            <label class="sr-only" for="dueDateInput">Due date</label>
+            <input id="dueDateInput" type="date" />
+
+            <button id="addBtn" type="submit">Add Task</button>
         </form>
-        <ul id="taskList"></ul>
+
+        <div class="controls">
+            <label class="sr-only" for="filterCategory">Filter by category</label>
+            <select id="filterCategory" aria-label="Filter by category">
+                <option value="">All categories</option>
+                <option>General</option>
+                <option>Study</option>
+                <option>Projects</option>
+                <option>Work</option>
+                <option>Personal</option>
+            </select>
+
+            <label class="sr-only" for="filterDone">Filter by completion</label>
+            <select id="filterDone" aria-label="Filter by completion">
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="done">Done</option>
+            </select>
+
+            <label class="sr-only" for="sortBy">Sort by</label>
+            <select id="sortBy" aria-label="Sort by">
+                <option value="created">Newest first</option>
+                <option value="due">Due date</option>
+                <option value="priority">Priority</option>
+            </select>
+
+            <button id="clearBtn" type="button">Clear Completed</button>
+            <button id="exportBtn" type="button">Export</button>
+            <input id="importFile" type="file" accept="application/json" style="display:none" />
+            <button id="importBtn" type="button">Import</button>
+        </div>
+
+        <div id="summary" class="summary" aria-live="polite"></div>
+
+        <ul id="taskList" aria-live="polite" aria-label="Tasks"></ul>
     </div>
 
     <script>
-        const taskForm = document.getElementById('taskForm');
-        const taskInput = document.getElementById('taskInput');
-        const prioritySelect = document.getElementById('prioritySelect');
-        const categorySelect = document.getElementById('categorySelect');
-        const dueDateInput = document.getElementById('dueDateInput');
-        const taskList = document.getElementById('taskList');
-        const STORAGE_KEY = 'myk-task-list';
+        (function () {
+            const STORAGE_KEY = 'myk-task-list-v2';
+            const FILTER_KEY = 'myk-task-filters-v1';
 
-        function normalizePriorityValue(value) {
-            const normalized = String(value || 'low').trim().toLowerCase().replace(/\s+/g, '-');
-            return ['low', 'medium', 'high', 'immediate-action'].includes(normalized) ? normalized : 'low';
-        }
+            const taskForm = document.getElementById('taskForm');
+            const taskInput = document.getElementById('taskInput');
+            const prioritySelect = document.getElementById('prioritySelect');
+            const categorySelect = document.getElementById('categorySelect');
+            const dueDateInput = document.getElementById('dueDateInput');
+            const taskList = document.getElementById('taskList');
+            const filterCategory = document.getElementById('filterCategory');
+            const filterDone = document.getElementById('filterDone');
+            const sortBy = document.getElementById('sortBy');
+            const clearBtn = document.getElementById('clearBtn');
+            const exportBtn = document.getElementById('exportBtn');
+            const importBtn = document.getElementById('importBtn');
+            const importFile = document.getElementById('importFile');
+            const summaryEl = document.getElementById('summary');
 
-        function getPriorityLabel(value) {
-            const normalized = normalizePriorityValue(value);
-            const labels = {
-                low: 'Low',
-                medium: 'Medium',
-                high: 'High',
-                'immediate-action': 'Immediate Action'
-            };
-            return labels[normalized] || 'Low';
-        }
+            const VALID_PRIORITIES = ['Low', 'Medium', 'High', 'Immediate Action'];
+            const VALID_CATEGORIES = ['General', 'Study', 'Projects', 'Work', 'Personal'];
+            const PRIORITY_ORDER = { 'Immediate Action': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
 
-        function normalizePriorityClass(value) {
-            return 'priority-' + normalizePriorityValue(value);
-        }
+            // In-memory tasks array
+            let tasks = [];
 
-        function createTextSpan(className, text) {
-            const span = document.createElement('span');
-            span.className = className;
-            span.textContent = text;
-            return span;
-        }
-
-        function renderTask(task) {
-            const li = document.createElement('li');
-            li.dataset.id = task.id || String(Date.now() + Math.random().toString(16).slice(2));
-            li.dataset.priority = normalizePriorityValue(task.priority);
-            li.dataset.category = task.category || 'General';
-            li.dataset.duedate = task.dueDate || '';
-            if (task.done) {
-                li.classList.add('done');
-            }
-
-            const info = document.createElement('div');
-            info.className = 'task-info';
-            info.tabIndex = 0;
-            info.setAttribute('role', 'button');
-            info.setAttribute('aria-pressed', String(!!task.done));
-
-            const strong = document.createElement('strong');
-            strong.textContent = task.text;
-
-            const prioritySpan = createTextSpan('priority', `${getPriorityLabel(task.priority)} Priority`);
-            prioritySpan.classList.add(normalizePriorityClass(task.priority));
-
-            const categorySpan = createTextSpan('category', `Category: ${task.category || 'General'}`);
-            const dueSpan = createTextSpan('due-date', `Due: ${task.dueDate || 'No date'}`);
-
-            info.append(strong, prioritySpan, categorySpan, dueSpan);
-
-            const actions = document.createElement('span');
-            actions.className = 'actions';
-
-            const removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.className = 'remove-btn';
-            removeBtn.textContent = 'Remove';
-            removeBtn.setAttribute('aria-label', `Remove ${task.text}`);
-
-            actions.appendChild(removeBtn);
-            li.append(info, actions);
-            taskList.appendChild(li);
-        }
-
-        function getTasksFromDOM() {
-            return Array.from(taskList.children).map((li) => ({
-                id: li.dataset.id,
-                text: li.querySelector('strong')?.textContent || '',
-                priority: li.dataset.priority || 'low',
-                category: li.dataset.category || 'General',
-                dueDate: li.dataset.duedate || '',
-                done: li.classList.contains('done')
-            }));
-        }
-
-        function saveTasks() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(getTasksFromDOM()));
-        }
-
-        function toggleTaskDone(li) {
-            li.classList.toggle('done');
-            const info = li.querySelector('.task-info');
-            if (info) {
-                info.setAttribute('aria-pressed', String(li.classList.contains('done')));
-            }
-            saveTasks();
-        }
-
-        function addTask() {
-            const taskText = taskInput.value.trim();
-            if (!taskText) return;
-
-            const task = {
-                id: String(Date.now()),
-                text: taskText,
-                priority: prioritySelect.value,
-                category: categorySelect.value,
-                dueDate: dueDateInput.value,
-                done: false
+            // safe mapping from priority value -> CSS class suffix
+            const priorityClassMap = {
+                'Low': 'priority-low',
+                'Medium': 'priority-medium',
+                'High': 'priority-high',
+                'Immediate Action': 'priority-immediate'
             };
 
-            renderTask(task);
-            saveTasks();
-            taskForm.reset();
-            prioritySelect.value = 'low';
-            categorySelect.value = 'General';
-            taskInput.focus();
-        }
+            // helper: generate simple unique id
+            function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
-        taskForm.addEventListener('submit', (event) => {
-            event.preventDefault();
-            addTask();
-        });
-
-        taskList.addEventListener('click', (event) => {
-            const removeButton = event.target.closest('.remove-btn');
-            if (removeButton) {
-                const li = removeButton.closest('li');
-                if (li) {
-                    li.remove();
-                    saveTasks();
+            // Save canonical tasks array to localStorage
+            function persist() {
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+                } catch (e) {
+                    console.error('Failed to save tasks', e);
+                    summaryEl.textContent = 'Warning: changes could not be saved to this browser.';
                 }
-                return;
             }
 
-            const info = event.target.closest('.task-info');
-            if (info) {
-                toggleTaskDone(info.closest('li'));
+            function persistFilters() {
+                try {
+                    localStorage.setItem(FILTER_KEY, JSON.stringify({
+                        category: filterCategory.value,
+                        done: filterDone.value,
+                        sort: sortBy.value
+                    }));
+                } catch (e) {
+                    // non-critical, ignore
+                }
             }
-        });
 
-        taskList.addEventListener('keydown', (event) => {
-            const info = event.target.closest('.task-info');
-            if (!info) return;
-
-            if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                toggleTaskDone(info.closest('li'));
+            function loadFilters() {
+                try {
+                    const raw = localStorage.getItem(FILTER_KEY);
+                    if (!raw) return;
+                    const parsed = JSON.parse(raw);
+                    if (parsed.category) filterCategory.value = parsed.category;
+                    if (parsed.done) filterDone.value = parsed.done;
+                    if (parsed.sort) sortBy.value = parsed.sort;
+                } catch (e) {
+                    // ignore malformed filter prefs
+                }
             }
-        });
 
-        function loadTasks() {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (!saved) return;
-
-            try {
-                const tasks = JSON.parse(saved);
-                if (!Array.isArray(tasks)) return;
-                tasks.forEach((task) => renderTask(task));
-            } catch (error) {
-                console.error('Failed to parse tasks', error);
+            // Load tasks from localStorage (robust, with per-item validation)
+            function load() {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (!raw) return;
+                    const parsed = JSON.parse(raw);
+                    if (!Array.isArray(parsed)) return;
+                    tasks = parsed
+                        .filter(it => it && typeof it === 'object')
+                        .map(sanitizeTask);
+                } catch (e) {
+                    console.warn('Could not parse tasks from storage, resetting', e);
+                    tasks = [];
+                    localStorage.removeItem(STORAGE_KEY);
+                }
             }
-        }
 
-        loadTasks();
+            // Normalize/validate a raw task object (from storage or import)
+            function sanitizeTask(it) {
+                return {
+                    id: (typeof it.id === 'string' && it.id) ? it.id : uid(),
+                    text: (typeof it.text === 'string' && it.text.trim()) ? it.text.trim() : '(empty)',
+                    priority: VALID_PRIORITIES.includes(it.priority) ? it.priority : 'Low',
+                    category: VALID_CATEGORIES.includes(it.category) ? it.category : 'General',
+                    dueDate: (typeof it.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(it.dueDate)) ? it.dueDate : '',
+                    done: !!it.done,
+                    createdAt: (typeof it.createdAt === 'string' && !isNaN(new Date(it.createdAt))) ? it.createdAt : new Date().toISOString()
+                };
+            }
+
+            // Format date to friendly string (YYYY-MM-DD -> localized)
+            function formatDate(d) {
+                if (!d) return '';
+                const date = new Date(d);
+                if (isNaN(date)) return '';
+                return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            }
+
+            function sortedTasks(list) {
+                const copy = list.slice();
+                const mode = sortBy.value;
+                if (mode === 'due') {
+                    copy.sort((a, b) => {
+                        if (!a.dueDate && !b.dueDate) return 0;
+                        if (!a.dueDate) return 1;
+                        if (!b.dueDate) return -1;
+                        return a.dueDate.localeCompare(b.dueDate);
+                    });
+                } else if (mode === 'priority') {
+                    copy.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 4) - (PRIORITY_ORDER[b.priority] ?? 4));
+                }
+                // 'created' keeps the existing (newest-first insertion) order
+                return copy;
+            }
+
+            // Render the full list using tasks array and current filters
+            function render() {
+                taskList.innerHTML = '';
+                const now = new Date();
+                const categoryFilter = filterCategory.value;
+                const doneFilter = filterDone.value;
+
+                const visible = tasks.filter(task => {
+                    if (categoryFilter && task.category !== categoryFilter) return false;
+                    if (doneFilter === 'active' && task.done) return false;
+                    if (doneFilter === 'done' && !task.done) return false;
+                    return true;
+                });
+
+                const doneCount = tasks.filter(t => t.done).length;
+                summaryEl.textContent = tasks.length
+                    ? `${doneCount} of ${tasks.length} task${tasks.length === 1 ? '' : 's'} done`
+                    : 'No tasks yet — add one above to get started.';
+
+                if (visible.length === 0) {
+                    const empty = document.createElement('li');
+                    empty.className = 'empty-state';
+                    empty.textContent = tasks.length === 0
+                        ? 'Nothing here yet. Add your first task above.'
+                        : 'No tasks match the current filters.';
+                    taskList.appendChild(empty);
+                    return;
+                }
+
+                sortedTasks(visible).forEach(task => {
+                    const li = document.createElement('li');
+                    li.setAttribute('data-id', task.id);
+                    if (task.done) li.classList.add('done');
+
+                    // toggle checkbox (separate control, so the info block isn't a fake button)
+                    const toggle = document.createElement('input');
+                    toggle.type = 'checkbox';
+                    toggle.className = 'task-toggle';
+                    toggle.checked = task.done;
+                    toggle.setAttribute('aria-label', (task.done ? 'Mark "' : 'Mark "') + task.text + '" as ' + (task.done ? 'not done' : 'done'));
+                    toggle.addEventListener('change', () => toggleDone(task.id));
+
+                    // left: info container (plain, non-interactive)
+                    const info = document.createElement('div');
+                    info.className = 'task-info';
+
+                    if (task.editing) {
+                        info.appendChild(buildEditRow(task));
+                    } else {
+                        const title = document.createElement('div');
+                        title.className = 'task-title';
+                        title.textContent = task.text;
+
+                        const meta = document.createElement('div');
+                        meta.className = 'task-meta';
+
+                        const pr = document.createElement('span');
+                        pr.className = priorityClassMap[task.priority] || 'priority-unknown';
+                        pr.textContent = (task.priority || 'Unknown') + ' Priority';
+
+                        const cat = document.createElement('span');
+                        cat.className = 'category';
+                        cat.textContent = 'Category: ' + task.category;
+
+                        const due = document.createElement('span');
+                        due.className = 'due-date';
+                        due.textContent = task.dueDate ? 'Due: ' + formatDate(task.dueDate) : 'Due: No date';
+                        if (task.dueDate) {
+                            const dueDateObj = new Date(task.dueDate + 'T23:59:59');
+                            if (!task.done && dueDateObj < now) {
+                                due.classList.add('due-overdue');
+                            }
+                        }
+
+                        meta.appendChild(pr);
+                        meta.appendChild(cat);
+                        meta.appendChild(due);
+
+                        info.appendChild(title);
+                        info.appendChild(meta);
+                    }
+
+                    // right: actions
+                    const actions = document.createElement('span');
+                    actions.className = 'actions';
+
+                    if (!task.editing) {
+                        const editBtn = document.createElement('button');
+                        editBtn.type = 'button';
+                        editBtn.textContent = 'Edit';
+                        editBtn.addEventListener('click', () => startEdit(task.id));
+
+                        const removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.className = 'remove-btn';
+                        removeBtn.textContent = 'Remove';
+                        removeBtn.addEventListener('click', () => removeTask(task.id));
+
+                        actions.appendChild(editBtn);
+                        actions.appendChild(removeBtn);
+                    }
+
+                    li.appendChild(toggle);
+                    li.appendChild(info);
+                    li.appendChild(actions);
+                    taskList.appendChild(li);
+                });
+            }
+
+            // Build an inline edit form for a task (replaces the native prompt())
+            function buildEditRow(task) {
+                const row = document.createElement('div');
+                row.className = 'edit-row';
+
+                const textInput = document.createElement('input');
+                textInput.type = 'text';
+                textInput.value = task.text;
+                textInput.setAttribute('aria-label', 'Edit task description');
+
+                const prioritySel = document.createElement('select');
+                VALID_PRIORITIES.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p;
+                    opt.textContent = p;
+                    if (p === task.priority) opt.selected = true;
+                    prioritySel.appendChild(opt);
+                });
+                prioritySel.setAttribute('aria-label', 'Edit priority');
+
+                const categorySel = document.createElement('select');
+                VALID_CATEGORIES.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    opt.textContent = c;
+                    if (c === task.category) opt.selected = true;
+                    categorySel.appendChild(opt);
+                });
+                categorySel.setAttribute('aria-label', 'Edit category');
+
+                const dueInput = document.createElement('input');
+                dueInput.type = 'date';
+                dueInput.value = task.dueDate || '';
+                dueInput.setAttribute('aria-label', 'Edit due date');
+
+                const saveBtn = document.createElement('button');
+                saveBtn.type = 'button';
+                saveBtn.textContent = 'Save';
+                saveBtn.addEventListener('click', () => saveEdit(task.id, {
+                    text: textInput.value,
+                    priority: prioritySel.value,
+                    category: categorySel.value,
+                    dueDate: dueInput.value
+                }));
+
+                const cancelBtn = document.createElement('button');
+                cancelBtn.type = 'button';
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.addEventListener('click', () => cancelEdit(task.id));
+
+                row.appendChild(textInput);
+                row.appendChild(prioritySel);
+                row.appendChild(categorySel);
+                row.appendChild(dueInput);
+                row.appendChild(saveBtn);
+                row.appendChild(cancelBtn);
+                return row;
+            }
+
+            function addTaskObj(task) {
+                tasks.unshift(task); // add to front
+                persist();
+                render();
+            }
+
+            // event handlers
+            taskForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                const text = taskInput.value.trim();
+                if (!text) return;
+                const newTask = {
+                    id: uid(),
+                    text,
+                    priority: prioritySelect.value,
+                    category: categorySelect.value,
+                    dueDate: dueDateInput.value || '',
+                    done: false,
+                    createdAt: new Date().toISOString()
+                };
+                addTaskObj(newTask);
+                taskForm.reset();
+                taskInput.focus();
+            });
+
+            function toggleDone(id) {
+                const t = tasks.find(x => x.id === id);
+                if (!t) return;
+                t.done = !t.done;
+                persist();
+                render();
+            }
+
+            function removeTask(id) {
+                const t = tasks.find(x => x.id === id);
+                if (!t) return;
+                if (!confirm(`Remove "${t.text}"? This can't be undone.`)) return;
+                tasks = tasks.filter(x => x.id !== id);
+                persist();
+                render();
+            }
+
+            function startEdit(id) {
+                tasks.forEach(t => { if (t.id !== id) delete t.editing; });
+                const t = tasks.find(x => x.id === id);
+                if (!t) return;
+                t.editing = true;
+                render();
+            }
+
+            function cancelEdit(id) {
+                const t = tasks.find(x => x.id === id);
+                if (t) delete t.editing;
+                render();
+            }
+
+            function saveEdit(id, updates) {
+                const t = tasks.find(x => x.id === id);
+                if (!t) return;
+                const text = (updates.text || '').trim();
+                if (text) t.text = text;
+                if (VALID_PRIORITIES.includes(updates.priority)) t.priority = updates.priority;
+                if (VALID_CATEGORIES.includes(updates.category)) t.category = updates.category;
+                t.dueDate = updates.dueDate || '';
+                delete t.editing;
+                persist();
+                render();
+            }
+
+            clearBtn.addEventListener('click', () => {
+                const doneCount = tasks.filter(t => t.done).length;
+                if (doneCount === 0) return;
+                if (!confirm(`Clear ${doneCount} completed task${doneCount === 1 ? '' : 's'}? This can't be undone.`)) return;
+                tasks = tasks.filter(t => !t.done);
+                persist();
+                render();
+            });
+
+            filterCategory.addEventListener('change', () => { persistFilters(); render(); });
+            filterDone.addEventListener('change', () => { persistFilters(); render(); });
+            sortBy.addEventListener('change', () => { persistFilters(); render(); });
+
+            exportBtn.addEventListener('click', () => {
+                const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'tasks.json';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+
+            importBtn.addEventListener('click', () => importFile.click());
+            importFile.addEventListener('change', async (e) => {
+                const f = e.target.files && e.target.files[0];
+                if (!f) return;
+                try {
+                    const text = await f.text();
+                    const imported = JSON.parse(text);
+                    if (!Array.isArray(imported)) throw new Error('Invalid file format');
+                    const sanitized = imported
+                        .filter(it => it && typeof it === 'object')
+                        .map(it => sanitizeTask({ ...it, id: undefined })); // always assign fresh ids on import to avoid collisions
+                    tasks = sanitized.concat(tasks);
+                    persist();
+                    render();
+                } catch (err) {
+                    alert('Failed to import: ' + err.message);
+                } finally {
+                    importFile.value = '';
+                }
+            });
+
+            // initialize
+            loadFilters();
+            load();
+            render();
+
+            // Expose live accessors for debugging in console (avoids stale references)
+            window._taskApp = {
+                getTasks: () => tasks,
+                persist,
+                render
+            };
+        })();
     </script>
 </body>
 
