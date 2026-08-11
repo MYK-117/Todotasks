@@ -1161,7 +1161,7 @@
                     <h1>Task Dashboard</h1>
                     <p>Keep your work organized with priorities, notes, and sectioned task lists.</p>
                 </div>
-                <div class="sync-pill" id="syncPill"><span class="sync-dot"></span><span id="syncPillText">Local only</span></div>
+                <div class="sync-pill" id="syncPill"><span class="sync-dot"></span><span id="syncPillText">Local only</span></div><div id="syncDebug" style="margin-top:5px;font-size:11px;color:var(--muted);display:none"></div><button id="syncRefreshBtn" type="button" style="margin-top:4px;border:0;background:none;color:var(--muted);font-size:11px;padding:0;cursor:pointer">Refresh cloud data</button>
                 <div class="stats-grid" id="statsGrid">
                     <div class="stat-card">
                         <div class="label">Total</div>
@@ -1503,6 +1503,7 @@
                 });
                 cloudLastPayload = serialized;
                 cloudPendingLocalChanges = false;
+                updateSyncDebug(cloudSyncUser, 'cloud tasks: ' + payload.tasks.length);
                 setSyncIndicator('online', 'Synced');
             }
 
@@ -1572,6 +1573,7 @@
                 }
 
                 cloudSyncUser = user;
+                updateSyncDebug(user, 'connecting');
                 cloudSyncStarted = true;
                 cloudSyncReady = false;
                 cloudHasRemoteSnapshot = false;
@@ -1622,13 +1624,18 @@
                             tasks = mergeTasks(tasks, remoteTasks);
                             workspaceStore.writeTasks(tasks);
                             render();
+                            updateSyncDebug(user, 'cloud tasks: ' + remoteTasks.length);
                         } finally {
                             cloudApplyingSnapshot = false;
                         }
 
                         tasksReady = true;
                         cloudSyncReady = tasksReady;
+                        updateSyncDebug(user, 'listener connected');
                         markReady();
+                        // Direct server read verifies the phone is reading the
+                        // same document and avoids relying solely on cache state.
+                        void forceCloudRead(user);
                     })().catch((error) => {
                         console.error('Task sync failed', error);
                         setSyncIndicator('offline', 'Sync error');
@@ -2525,6 +2532,48 @@
                 if (label) label.textContent = message || 'Sync error';
             }
 
+            function updateSyncDebug(user, extra = '') {
+                const el = document.getElementById('syncDebug');
+                if (!el) return;
+                if (!user) {
+                    el.style.display = 'none';
+                    return;
+                }
+                const uid = String(user.uid || '');
+                const shortUid = uid.length > 12 ? uid.slice(0, 6) + '…' + uid.slice(-6) : uid;
+                el.textContent = 'Firebase UID: ' + shortUid + (extra ? ' • ' + extra : '');
+                el.style.display = 'block';
+            }
+
+            async function forceCloudRead(user) {
+                if (!firestoreDb || !user) return;
+                const ref = cloudWorkspacePath(user);
+                if (!ref) return;
+
+                try {
+                    const snap = await ref.get({ source: 'server' });
+                    const data = snap.exists ? snap.data() : null;
+                    const count = Array.isArray(data?.tasks) ? data.tasks.length : 0;
+
+                    updateSyncDebug(user, 'cloud tasks: ' + count);
+
+                    if (data && Array.isArray(data.tasks)) {
+                        cloudApplyingSnapshot = true;
+                        try {
+                            tasks = mergeTasks(tasks, data.tasks.map(sanitizeTask));
+                            workspaceStore.writeTasks(tasks);
+                            render();
+                        } finally {
+                            cloudApplyingSnapshot = false;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Forced Firestore read failed', error);
+                    updateSyncDebug(user, 'read failed');
+                    showSyncError('Cloud read failed: ' + error.message);
+                }
+            }
+
             function setSyncIndicator(mode, text) {
                 const pill = document.getElementById('syncPill');
                 const label = document.getElementById('syncPillText');
@@ -2629,6 +2678,15 @@
                     });
                 }
             }
+
+            document.getElementById('syncRefreshBtn')?.addEventListener('click', () => {
+                const user = firebaseAuth?.currentUser;
+                if (!user) return;
+                setSyncIndicator('syncing', 'Refreshing…');
+                void forceCloudRead(user).finally(() => {
+                    setSyncIndicator('online', 'Synced');
+                });
+            });
 
             const mobileNav = document.getElementById('mobileNav');
             const mobileAddBtn = document.getElementById('mobileAddBtn');
