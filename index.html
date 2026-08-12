@@ -851,6 +851,16 @@
             min-height: 36px;
         }
 
+
+        .quick-search { display:flex; gap:8px; align-items:center; }
+        .quick-search input { flex:1; min-width:180px; background:var(--panel-2); }
+        .shortcut-hint { color:var(--muted); font-size:12px; white-space:nowrap; }
+        .toast { position:fixed; left:50%; bottom:24px; transform:translate(-50%,20px); opacity:0; pointer-events:none; z-index:2000; display:flex; align-items:center; gap:12px; max-width:min(92vw,520px); padding:11px 14px; border-radius:12px; background:var(--text); color:var(--panel); box-shadow:0 16px 40px rgba(0,0,0,.22); transition:opacity .18s ease,transform .18s ease; font-weight:650; }
+        .toast.show { opacity:1; transform:translate(-50%,0); pointer-events:auto; }
+        .toast button { padding:5px 9px; border-radius:8px; background:rgba(255,255,255,.16); color:inherit; border:1px solid rgba(255,255,255,.18); }
+        .task-title.clickable { cursor:pointer; }
+        .task-title.clickable:hover { text-decoration:underline; text-underline-offset:3px; }
+        @media (max-width:640px) { .quick-search { display:grid; grid-template-columns:1fr; } .shortcut-hint { display:none; } .toast { bottom:86px; } }
         @media (max-width: 640px) {
             body {
                 padding-bottom: 76px;
@@ -993,7 +1003,7 @@
                 bottom: 8px;
                 z-index: 25;
                 display: grid;
-                grid-template-columns: repeat(5, 1fr);
+                grid-template-columns: repeat(6, 1fr);
                 gap: 4px;
                 padding: 7px;
                 border: 1px solid var(--border);
@@ -1444,6 +1454,8 @@
         <button type="button" data-mobile-view="recycle"><span class="mobile-icon">♲</span>Bin</button>
         <button type="button" id="mobileAccountBtn"><span class="mobile-icon">◎</span>Account</button>
     </nav>
+    <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastMessage"></span><button type="button" id="toastUndo" hidden>Undo</button></div>
+
     <div class="app-shell">
         <aside class="sidebar" aria-label="Task views">
             <div>
@@ -1578,6 +1590,10 @@
                     <input id="importFile" type="file" accept="application/json" style="display:none" />
                     <button id="importBtn" type="button">Import</button>
                 </div>
+                <div class="quick-search">
+                    <input id="taskSearch" type="search" placeholder="Search tasks…" aria-label="Search tasks" autocomplete="off" />
+                    <span class="shortcut-hint">Press / to search · Ctrl/Cmd+K to add</span>
+                </div>
             </section>
 
             <section class="notes-panel">
@@ -1634,7 +1650,13 @@
             const darkModeToggle = document.getElementById('darkModeToggle');
             const workspaceNotes = document.getElementById('workspaceNotes');
             const accountBtn = document.getElementById('accountBtn');
+            const taskSearch = document.getElementById('taskSearch');
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastUndo = document.getElementById('toastUndo');
             const PROFILE_KEY = 'myk-profile-v1';
+            let undoAction = null;
+            let toastTimer = null;
 
             const VALID_PRIORITIES = ['Low', 'Medium', 'High', 'Immediate Action'];
             const VALID_CATEGORIES = ['General', 'Study', 'Projects', 'Work', 'Personal'];
@@ -2351,9 +2373,11 @@
             }
 
             function getVisibleTasks() {
+                const query = String(taskSearch?.value || '').trim().toLowerCase();
                 return tasks.filter((task) => {
-                    if (state.view === 'recycle') return !!task.deletedAt;
+                    if (state.view === 'recycle') return !!task.deletedAt && (!query || `${task.text} ${task.category} ${task.priority}`.toLowerCase().includes(query));
                     if (task.deletedAt) return false;
+                    if (query && !`${task.text} ${task.category} ${task.priority}`.toLowerCase().includes(query)) return false;
                     if (state.view === 'today' && !isToday(task.dueDate)) return false;
                     if (state.view === 'upcoming' && !isUpcoming(task.dueDate, task.dueTime)) return false;
                     if (state.view === 'overdue' && !isOverdue(task.dueDate, task.done, task.dueTime)) return false;
@@ -2494,8 +2518,12 @@
                     info.appendChild(buildEditRow(task));
                 } else {
                     const title = document.createElement('div');
-                    title.className = 'task-title';
+                    title.className = 'task-title clickable';
                     title.textContent = task.text;
+                    if (state.view !== 'recycle') {
+                        title.title = 'Click to edit';
+                        title.addEventListener('click', () => startEdit(task.id));
+                    }
 
                     const meta = document.createElement('div');
                     meta.className = 'task-meta';
@@ -2529,20 +2557,7 @@
 
                 const actions = document.createElement('span');
                 actions.className = 'actions';
-                if (!task.editing) {
-                    const editBtn = document.createElement('button');
-                    editBtn.type = 'button';
-                    editBtn.textContent = 'Edit';
-                    editBtn.addEventListener('click', () => startEdit(task.id));
-
-                    const removeBtn = document.createElement('button');
-                    removeBtn.type = 'button';
-                    removeBtn.className = 'remove-btn';
-                    removeBtn.textContent = 'Move to Bin';
-                    removeBtn.addEventListener('click', () => removeTask(task.id));
-
-                    actions.append(editBtn, removeBtn);
-                } else if (state.view === 'recycle') {
+                if (state.view === 'recycle') {
                     const restoreBtn = document.createElement('button');
                     restoreBtn.type = 'button';
                     restoreBtn.textContent = 'Restore';
@@ -2555,6 +2570,19 @@
                     permanentBtn.addEventListener('click', () => permanentlyDeleteTask(task.id));
 
                     actions.append(restoreBtn, permanentBtn);
+                } else if (!task.editing) {
+                    const editBtn = document.createElement('button');
+                    editBtn.type = 'button';
+                    editBtn.textContent = 'Edit';
+                    editBtn.addEventListener('click', () => startEdit(task.id));
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'remove-btn';
+                    removeBtn.textContent = 'Move to Bin';
+                    removeBtn.addEventListener('click', () => removeTask(task.id));
+
+                    actions.append(editBtn, removeBtn);
                 }
 
                 li.append(toggle, info, actions);
@@ -2624,15 +2652,34 @@
                 render();
             }
 
+            function parseQuickTaskInput(rawText) {
+                let text = rawText.trim();
+                let priority = prioritySelect.value;
+                let category = categorySelect.value;
+                const priorityMatch = text.match(/(^|\s)!((?:low)|(?:medium)|(?:high)|(?:urgent)|(?:immediate))(?=\s|$)/i);
+                if (priorityMatch) {
+                    const value = priorityMatch[2].toLowerCase();
+                    priority = value === 'urgent' || value === 'immediate' ? 'Immediate Action' : value.charAt(0).toUpperCase() + value.slice(1);
+                    text = text.replace(priorityMatch[0], ' ').replace(/\s+/g, ' ').trim();
+                }
+                const categoryMatch = text.match(/(^|\s)#(general|study|projects|work|personal)(?=\s|$)/i);
+                if (categoryMatch) {
+                    const value = categoryMatch[2].toLowerCase();
+                    category = value.charAt(0).toUpperCase() + value.slice(1);
+                    text = text.replace(categoryMatch[0], ' ').replace(/\s+/g, ' ').trim();
+                }
+                return { text, priority, category };
+            }
+
             taskForm.addEventListener('submit', (event) => {
                 event.preventDefault();
-                const text = taskInput.value.trim();
-                if (!text) return;
+                const parsed = parseQuickTaskInput(taskInput.value);
+                if (!parsed.text) return;
                 addTask({
                     id: uid(),
-                    text,
-                    priority: prioritySelect.value,
-                    category: categorySelect.value,
+                    text: parsed.text,
+                    priority: parsed.priority,
+                    category: parsed.category,
                     dueDate: dueDateInput.value || '',
                     dueTime: dueTimeInput.value || '',
                     done: false,
@@ -2642,6 +2689,23 @@
                 });
                 taskForm.reset();
                 taskInput.focus();
+                showToast('Task added');
+            });
+
+            function showToast(message, undoFn = null) {
+                if (!toast || !toastMessage) return;
+                clearTimeout(toastTimer);
+                undoAction = undoFn;
+                toastMessage.textContent = message;
+                if (toastUndo) toastUndo.hidden = !undoFn;
+                toast.classList.add('show');
+                toastTimer = setTimeout(() => { toast.classList.remove('show'); undoAction = null; }, undoFn ? 5000 : 2200);
+            }
+
+            toastUndo?.addEventListener('click', () => {
+                if (undoAction) undoAction();
+                undoAction = null;
+                toast.classList.remove('show');
             });
 
             function getTaskById(id) {
@@ -2661,12 +2725,20 @@
                 const task = getTaskById(id);
                 if (!task || task.deletedAt) return;
                 if (!confirm(`Move "${task.text}" to the Recycle Bin?`)) return;
+                const previous = { deletedAt: task.deletedAt, done: task.done, updatedAt: task.updatedAt };
                 task.deletedAt = new Date().toISOString();
                 task.done = false;
                 delete task.editing;
                 touchTask(task);
                 persistTasks();
                 render();
+                showToast('Task moved to Bin', () => {
+                    const current = getTaskById(id);
+                    if (!current) return;
+                    Object.assign(current, previous);
+                    persistTasks();
+                    render();
+                });
             }
 
             function restoreTask(id) {
@@ -2820,6 +2892,18 @@
                 } finally {
                     importFile.value = '';
                 }
+            });
+
+            taskSearch?.addEventListener('input', () => render());
+
+            document.addEventListener('keydown', (event) => {
+                const target = event.target;
+                const typing = target && ['INPUT','TEXTAREA','SELECT'].includes(target.tagName);
+                const meta = event.ctrlKey || event.metaKey;
+                if (meta && event.key.toLowerCase() === 'k') { event.preventDefault(); taskInput?.focus(); taskInput?.select(); return; }
+                if (!typing && event.key === '/') { event.preventDefault(); taskSearch?.focus(); return; }
+                if (!typing && event.key.toLowerCase() === 'n') { event.preventDefault(); taskInput?.focus(); }
+                if (event.key === 'Escape' && document.activeElement === taskSearch) { taskSearch.value=''; taskSearch.blur(); render(); }
             });
 
             function applyDarkMode() {
