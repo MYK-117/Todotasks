@@ -1543,11 +1543,10 @@
                 clearTimeout(cloudWriteTimer);
                 cloudWriteTimer = setTimeout(() => {
                     syncLocalTaskChanges().catch((error) => {
-                        const detail = error?.code ? error.code + ': ' + error.message : error.message;
+                        const detail = error?.code ? error.code + ': ' + error.message : (error?.message || String(error));
                         console.error('Task cloud write failed:', error);
-                        showSyncError('Sync error: ' + detail);
                         logFirebaseMessage('Task sync error: ' + detail);
-                        setSyncIndicator('offline', 'Sync error');
+                        setSyncIndicator('offline', 'Error: ' + detail);
                     });
                 }, 150);
             }
@@ -1800,10 +1799,10 @@
                     setSyncIndicator('online', 'Synced');
                 } catch (error) {
                     console.error('Cloud sync failed:', error);
-                    const detail = error?.code ? error.code + ': ' + error.message : error.message;
-                    showSyncError('Sync error: ' + detail);
+                    const detail = error?.code ? error.code + ': ' + error.message : (error?.message || String(error));
+                    updateSyncDebug(user, 'sync failed: ' + detail);
                     logFirebaseMessage('Cloud sync error: ' + detail);
-                    setSyncIndicator('offline', 'Sync error');
+                    setSyncIndicator('offline', 'Error: ' + detail);
                     throw error;
                 } finally {
                     cloudApplyingSnapshot = false;
