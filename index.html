@@ -1970,6 +1970,7 @@
             function mergeTaskRecords(localTasks, remoteRecords) {
                 const localMap = new Map(localTasks.map(task => [String(task.id), sanitizeTask(task)]));
                 const merged = new Map();
+                const tombstoned = new Set();
 
                 for (const record of remoteRecords) {
                     const id = String(record.id || '');
@@ -1982,8 +1983,10 @@
                     if (record.syncDeleted) {
                         if (local && localStamp > remoteStamp) {
                             merged.set(id, local);
+                        } else {
+                            // Remote deletion wins — don't let the fallback pass below resurrect it.
+                            tombstoned.add(id);
                         }
-                        // Otherwise the remote deletion wins.
                         continue;
                     }
 
@@ -1996,7 +1999,7 @@
                 }
 
                 for (const [id, local] of localMap) {
-                    if (!merged.has(id)) merged.set(id, local);
+                    if (!merged.has(id) && !tombstoned.has(id)) merged.set(id, local);
                 }
 
                 return Array.from(merged.values()).map(sanitizeTask);
