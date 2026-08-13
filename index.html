@@ -5,6 +5,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>MYK Workspace Task Board</title>
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#4f46e5" />
     <style>
         :root {
             --bg: #f4f6fa;
@@ -559,6 +561,102 @@
         .due-overdue {
             color: var(--overdue);
             font-weight: 700;
+        }
+
+        .due-soon {
+            color: var(--warning);
+            font-weight: 700;
+        }
+
+        li[draggable="true"] {
+            cursor: grab;
+        }
+
+        li.drag-over {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--primary-2) inset;
+        }
+
+        li.dragging {
+            opacity: 0.5;
+        }
+
+        .drag-handle {
+            cursor: grab;
+            color: var(--muted);
+            padding: 2px 4px;
+            user-select: none;
+            flex: 0 0 auto;
+        }
+
+        .task-select {
+            margin-top: 2px;
+            width: 16px;
+            height: 16px;
+            flex: 0 0 auto;
+            cursor: pointer;
+        }
+
+        .bulk-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 14px;
+        }
+
+        .bulk-bar button {
+            background: #eef1f5;
+            color: #344054;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .bulk-bar button.remove-btn {
+            background: var(--danger);
+            color: white;
+        }
+
+        .task-details {
+            font-size: 13px;
+            color: var(--muted);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .edit-row textarea {
+            width: 100%;
+            min-height: 60px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            padding: 8px;
+            font-family: inherit;
+            background: var(--panel-2);
+            color: var(--text);
+        }
+
+        .notes-panel .notes-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 8px;
+        }
+
+        .notes-panel .notes-actions button {
+            background: #eef1f5;
+            color: #344054;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
         }
 
         .empty-state {
@@ -1536,6 +1634,10 @@
                         <div class="label">Overdue</div>
                         <div class="value" id="statOverdue">0</div>
                     </div>
+                    <div class="stat-card">
+                        <div class="label">Done This Week</div>
+                        <div class="value" id="statWeek">0</div>
+                    </div>
                 </div>
             </section>
 
@@ -1583,6 +1685,7 @@
                         <option value="created">Newest first</option>
                         <option value="due">Due date</option>
                         <option value="priority">Priority</option>
+                        <option value="manual">Manual order (drag to reorder)</option>
                     </select>
 
                     <button id="clearBtn" type="button">Clear Completed</button>
@@ -1600,6 +1703,9 @@
                 <div class="section-title">Notes</div>
                 <div class="section-subtitle">Write quick reminders or workspace notes here.</div>
                 <textarea id="workspaceNotes" placeholder="Meeting notes, reminders, or general context..."></textarea>
+                <div class="notes-actions">
+                    <button type="button" id="notesUndoBtn" title="Restore the previous saved version of your notes">Undo Last Edit</button>
+                </div>
             </section>
 
             <section class="task-panel">
@@ -1626,6 +1732,8 @@
             const FILTER_KEY = 'myk-task-dashboard-v1';
             const NOTES_KEY = 'myk-workspace-notes-v1';
             const NOTES_UPDATED_KEY = 'myk-workspace-notes-updated-v1';
+            const NOTES_PREVIOUS_KEY = 'myk-workspace-notes-previous-v1';
+            let notesSnapshotBeforeEdit = null;
 
             const taskForm = document.getElementById('taskForm');
             const taskInput = document.getElementById('taskInput');
@@ -1646,6 +1754,7 @@
             const statActive = document.getElementById('statActive');
             const statDone = document.getElementById('statDone');
             const statOverdue = document.getElementById('statOverdue');
+            const statWeek = document.getElementById('statWeek');
             const emptyRecycleBtn = document.getElementById('emptyRecycleBtn');
             const darkModeToggle = document.getElementById('darkModeToggle');
             const workspaceNotes = document.getElementById('workspaceNotes');
@@ -1663,6 +1772,8 @@
             const PRIORITY_ORDER = { 'Immediate Action': 0, High: 1, Medium: 2, Low: 3 };
 
             let tasks = [];
+            const selectedTaskIds = new Set();
+            let draggedTaskId = null;
             let state = {
                 view: 'all',
                 category: '',
@@ -1732,6 +1843,17 @@
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 return date < today;
+            }
+
+            function isDueSoon(value, done, timeValue) {
+                if (done || !value) return false;
+                if (isOverdue(value, done, timeValue)) return false;
+                const date = parseDate(value);
+                if (!date) return false;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const diffDays = Math.round((date - today) / (24 * 60 * 60 * 1000));
+                return diffDays === 0 || diffDays === 1;
             }
 
             const workspaceStore = {
@@ -2332,6 +2454,7 @@
                     category: VALID_CATEGORIES.includes(task.category) ? task.category : 'General',
                     dueDate: typeof task.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(task.dueDate) ? task.dueDate : '',
                     dueTime: typeof task.dueTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(task.dueTime) ? task.dueTime : '',
+                    details: typeof task.details === 'string' ? task.details.trim().slice(0, 2000) : '',
                     done: !!task.done,
                     createdAt,
                     updatedAt,
@@ -2344,9 +2467,24 @@
                 return task;
             }
 
+            const RECYCLE_BIN_MAX_AGE_DAYS = 30;
+
+            function purgeOldRecycledTasks() {
+                const cutoff = Date.now() - RECYCLE_BIN_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+                const before = tasks.length;
+                tasks = tasks.filter((task) => {
+                    if (!task.deletedAt) return true;
+                    const deletedTime = new Date(task.deletedAt).getTime();
+                    if (Number.isNaN(deletedTime)) return true;
+                    return deletedTime >= cutoff;
+                });
+                return before !== tasks.length;
+            }
+
             function loadTasks() {
                 const parsed = workspaceStore.readTasks();
                 tasks = Array.isArray(parsed) ? parsed.filter(Boolean).map(sanitizeTask) : [];
+                purgeOldRecycledTasks();
                 persistTasks();
             }
 
@@ -2413,10 +2551,13 @@
                 const recycleCount = tasks.filter((task) => !!task.deletedAt).length;
                 const recycleEl = document.getElementById('recycleCount');
                 if (recycleEl) recycleEl.textContent = recycleCount;
+                const weekCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+                const weekCount = activeTasks.filter((task) => task.done && new Date(task.updatedAt).getTime() >= weekCutoff).length;
                 statTotal.textContent = total;
                 statActive.textContent = total - doneCount;
                 statDone.textContent = doneCount;
                 statOverdue.textContent = overdueCount;
+                if (statWeek) statWeek.textContent = weekCount;
             }
 
             function updateViewLabel() {
@@ -2455,6 +2596,8 @@
                     ? `${activeTasks.filter((task) => task.done).length} of ${activeTasks.length} task${activeTasks.length === 1 ? '' : 's'} done`
                     : 'No tasks yet — add one above to get started.';
 
+                renderBulkBar(visible);
+
                 if (state.view === 'all') {
                     renderSection('Needs To Do', visible.filter((task) => !task.done && !isOverdue(task.dueDate, task.done, task.dueTime)));
                     renderSection('Past Due', visible.filter((task) => isOverdue(task.dueDate, task.done, task.dueTime)));
@@ -2462,6 +2605,69 @@
                 } else {
                     renderSection(currentViewLabel.textContent || 'Tasks', visible);
                 }
+            }
+
+            function renderBulkBar(visibleTasks) {
+                const visibleIds = new Set(visibleTasks.map((task) => task.id));
+                let changed = false;
+                selectedTaskIds.forEach((id) => {
+                    if (!visibleIds.has(id)) { selectedTaskIds.delete(id); changed = true; }
+                });
+                if (!selectedTaskIds.size) return;
+                const bar = document.createElement('div');
+                bar.className = 'bulk-bar';
+
+                const label = document.createElement('span');
+                label.textContent = `${selectedTaskIds.size} selected`;
+
+                const doneBtn = document.createElement('button');
+                doneBtn.type = 'button';
+                doneBtn.textContent = 'Mark Done';
+                doneBtn.addEventListener('click', () => bulkMarkDone());
+
+                const binBtn = document.createElement('button');
+                binBtn.type = 'button';
+                binBtn.className = 'remove-btn';
+                binBtn.textContent = 'Move to Bin';
+                binBtn.addEventListener('click', () => bulkMoveToBin());
+
+                const clearBtn = document.createElement('button');
+                clearBtn.type = 'button';
+                clearBtn.textContent = 'Clear Selection';
+                clearBtn.addEventListener('click', () => { selectedTaskIds.clear(); render(); });
+
+                bar.append(label, doneBtn, binBtn, clearBtn);
+                taskSections.appendChild(bar);
+            }
+
+            function bulkMarkDone() {
+                let touched = false;
+                selectedTaskIds.forEach((id) => {
+                    const task = getTaskById(id);
+                    if (task && !task.done) { task.done = true; touchTask(task); touched = true; }
+                });
+                selectedTaskIds.clear();
+                if (touched) persistTasks();
+                render();
+            }
+
+            function bulkMoveToBin() {
+                const count = selectedTaskIds.size;
+                if (!count) return;
+                if (!confirm(`Move ${count} task${count === 1 ? '' : 's'} to the Recycle Bin?`)) return;
+                const now = new Date().toISOString();
+                selectedTaskIds.forEach((id) => {
+                    const task = getTaskById(id);
+                    if (task && !task.deletedAt) {
+                        task.deletedAt = now;
+                        task.done = false;
+                        delete task.editing;
+                        touchTask(task);
+                    }
+                });
+                selectedTaskIds.clear();
+                persistTasks();
+                render();
             }
 
             function renderSection(title, tasksInSection) {
@@ -2505,6 +2711,51 @@
                 const li = document.createElement('li');
                 if (task.done) li.classList.add('done');
 
+                const canDrag = state.view !== 'recycle' && state.sort === 'manual';
+                if (canDrag) {
+                    li.draggable = true;
+                    li.addEventListener('dragstart', (event) => {
+                        draggedTaskId = task.id;
+                        li.classList.add('dragging');
+                        event.dataTransfer.effectAllowed = 'move';
+                    });
+                    li.addEventListener('dragend', () => {
+                        draggedTaskId = null;
+                        li.classList.remove('dragging');
+                        document.querySelectorAll('li.drag-over').forEach((el) => el.classList.remove('drag-over'));
+                    });
+                    li.addEventListener('dragover', (event) => {
+                        event.preventDefault();
+                        if (draggedTaskId && draggedTaskId !== task.id) li.classList.add('drag-over');
+                    });
+                    li.addEventListener('dragleave', () => li.classList.remove('drag-over'));
+                    li.addEventListener('drop', (event) => {
+                        event.preventDefault();
+                        li.classList.remove('drag-over');
+                        if (draggedTaskId && draggedTaskId !== task.id) {
+                            reorderTasks(draggedTaskId, task.id);
+                        }
+                    });
+                }
+
+                const handle = document.createElement('span');
+                handle.className = 'drag-handle';
+                handle.textContent = '⠿';
+                handle.hidden = !canDrag;
+                handle.setAttribute('aria-hidden', 'true');
+
+                const select = document.createElement('input');
+                select.type = 'checkbox';
+                select.className = 'task-select';
+                select.title = 'Select for bulk actions';
+                select.checked = selectedTaskIds.has(task.id);
+                select.hidden = state.view === 'recycle';
+                select.addEventListener('change', () => {
+                    if (select.checked) selectedTaskIds.add(task.id);
+                    else selectedTaskIds.delete(task.id);
+                    render();
+                });
+
                 const toggle = document.createElement('input');
                 toggle.type = 'checkbox';
                 toggle.className = 'task-toggle';
@@ -2540,6 +2791,8 @@
                     dueDate.textContent = formatDue(task);
                     if (isOverdue(task.dueDate, task.done, task.dueTime)) {
                         dueDate.classList.add('due-overdue');
+                    } else if (isDueSoon(task.dueDate, task.done, task.dueTime)) {
+                        dueDate.classList.add('due-soon');
                     }
 
                     meta.append(priority, category, dueDate);
@@ -2553,6 +2806,13 @@
                         meta.appendChild(deleted);
                     }
                     info.append(title, meta);
+
+                    if (task.details) {
+                        const details = document.createElement('div');
+                        details.className = 'task-details';
+                        details.textContent = task.details;
+                        info.appendChild(details);
+                    }
                 }
 
                 const actions = document.createElement('span');
@@ -2585,7 +2845,7 @@
                     actions.append(editBtn, removeBtn);
                 }
 
-                li.append(toggle, info, actions);
+                li.append(handle, select, toggle, info, actions);
                 return li;
             }
 
@@ -2597,6 +2857,33 @@
                 textInput.type = 'text';
                 textInput.value = task.text;
                 textInput.setAttribute('aria-label', 'Edit task description');
+                textInput.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        cancelEdit(task.id);
+                    } else if (event.key === 'Enter') {
+                        event.preventDefault();
+                        saveEdit(task.id, {
+                            text: textInput.value,
+                            priority: prioritySel.value,
+                            category: categorySel.value,
+                            dueDate: dueInput.value,
+                            dueTime: dueTimeInput.value,
+                            details: detailsInput.value,
+                        });
+                    }
+                });
+
+                const detailsInput = document.createElement('textarea');
+                detailsInput.value = task.details || '';
+                detailsInput.placeholder = 'Add details or a checklist for this task (optional)';
+                detailsInput.setAttribute('aria-label', 'Edit task details');
+                detailsInput.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        cancelEdit(task.id);
+                    }
+                });
 
                 const prioritySel = document.createElement('select');
                 VALID_PRIORITIES.forEach((priority) => {
@@ -2635,6 +2922,7 @@
                     category: categorySel.value,
                     dueDate: dueInput.value,
                     dueTime: dueTimeInput.value,
+                    details: detailsInput.value,
                 }));
 
                 const cancelBtn = document.createElement('button');
@@ -2642,8 +2930,19 @@
                 cancelBtn.textContent = 'Cancel';
                 cancelBtn.addEventListener('click', () => cancelEdit(task.id));
 
-                row.append(textInput, prioritySel, categorySel, dueInput, dueTimeInput, saveBtn, cancelBtn);
+                row.append(textInput, detailsInput, prioritySel, categorySel, dueInput, dueTimeInput, saveBtn, cancelBtn);
                 return row;
+            }
+
+            function reorderTasks(draggedId, targetId) {
+                const fromIndex = tasks.findIndex((task) => task.id === draggedId);
+                const toIndex = tasks.findIndex((task) => task.id === targetId);
+                if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+                const [moved] = tasks.splice(fromIndex, 1);
+                const insertAt = tasks.findIndex((task) => task.id === targetId);
+                tasks.splice(insertAt, 0, moved);
+                persistTasks();
+                render();
             }
 
             function addTask(task) {
@@ -2794,6 +3093,7 @@
                 if (VALID_CATEGORIES.includes(updates.category)) task.category = updates.category;
                 task.dueDate = updates.dueDate || '';
                 task.dueTime = updates.dueTime || '';
+                task.details = typeof updates.details === 'string' ? updates.details.trim().slice(0, 2000) : task.details;
                 delete task.editing;
                 touchTask(task);
                 persistTasks();
@@ -2920,6 +3220,32 @@
             workspaceNotes.addEventListener('input', () => {
                 localStorage.setItem(NOTES_UPDATED_KEY, String(Date.now()));
                 persistNotes();
+            });
+
+            workspaceNotes.addEventListener('focus', () => {
+                notesSnapshotBeforeEdit = workspaceNotes.value;
+            });
+
+            workspaceNotes.addEventListener('blur', () => {
+                if (notesSnapshotBeforeEdit !== null && notesSnapshotBeforeEdit !== workspaceNotes.value) {
+                    localStorage.setItem(NOTES_PREVIOUS_KEY, notesSnapshotBeforeEdit);
+                }
+                notesSnapshotBeforeEdit = null;
+            });
+
+            const notesUndoBtn = document.getElementById('notesUndoBtn');
+            notesUndoBtn?.addEventListener('click', () => {
+                const previous = localStorage.getItem(NOTES_PREVIOUS_KEY);
+                if (previous == null) {
+                    showToast('Nothing to undo');
+                    return;
+                }
+                const current = workspaceNotes.value;
+                workspaceNotes.value = previous;
+                localStorage.setItem(NOTES_UPDATED_KEY, String(Date.now()));
+                persistNotes();
+                localStorage.setItem(NOTES_PREVIOUS_KEY, current);
+                showToast('Notes restored to previous version');
             });
 
             /* Account modal handling + Firebase scaffold (frontend only) */
@@ -3274,13 +3600,6 @@
             });
 
 
-            window.addEventListener('online', () => {
-                if (firebaseAuth?.currentUser) {
-                    startCloudSync(firebaseAuth.currentUser);
-                }
-            });
-
-
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible' && firebaseAuth?.currentUser) {
                     void syncCloudNow(firebaseAuth.currentUser).catch(() => {});
@@ -3289,6 +3608,7 @@
 
             window.addEventListener('online', () => {
                 if (firebaseAuth?.currentUser) {
+                    startCloudSync(firebaseAuth.currentUser);
                     void syncCloudNow(firebaseAuth.currentUser).catch(() => {});
                 }
             });
@@ -3310,6 +3630,18 @@
             renderAuthUI(null);
             bindFirebaseAuthButtons();
             initFirebase(firebaseConfig);
+
+            if ('serviceWorker' in navigator) {
+                if (location.protocol === 'http:' || location.protocol === 'https:') {
+                    window.addEventListener('load', () => {
+                        navigator.serviceWorker.register('sw.js').catch((err) => {
+                            console.warn('Service worker registration failed', err);
+                        });
+                    });
+                } else {
+                    console.info('Service worker skipped: page must be served over http(s), not opened as a local file.');
+                }
+            }
         });
     </script>
     <!-- Account / Auth Modal -->
